@@ -13,3 +13,9 @@ yarn build
 ```
 
 to bundle your application
+
+## TODO:
+
+[ ] Implement a simple parser for regular expressions through combinators. [ ]
+Implement conversion of NFA to DFA. [ ] Implement the minimization of DFA
+through Hopcroft's algorithm. [ ] Beautify the website.
