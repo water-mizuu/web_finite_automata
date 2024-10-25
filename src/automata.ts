@@ -304,7 +304,6 @@ export class NFA extends FiniteAutomata {
 
   static fromGlushkovConstruction(regularExpression: RegularExpression) {
     const linearized = regularExpression.getLinearized();
-    console.log({ linearized });
 
     const prefixes = new Set<Letter>();
     for (const prefix of linearized.getPrefixes()) {
@@ -317,7 +316,6 @@ export class NFA extends FiniteAutomata {
     const pairs = new Set<[Letter, Letter]>();
     for (const pair of linearized.getPairs()) {
       pairs.add(pair);
-      console.log({ pair });
     }
 
     const start = new State(0, "1");
