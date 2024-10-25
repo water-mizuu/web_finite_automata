@@ -283,11 +283,6 @@ export abstract class FiniteAutomata {
 //   }
 // }
 
-// enum NFAConversionMode {
-//   glushkov,
-//   thompson,
-// }
-
 export class NFA extends FiniteAutomata {
   constructor(
     public states: Set<State>,
@@ -439,21 +434,6 @@ export class NFA extends FiniteAutomata {
 
     return buffer.join("");
   }
-
-  //   @override
-  //   String dot({StateName stateName = StateName.blank}) {
-  //     StringBuffer buffer = StringBuffer("digraph G {\n");
-
-  //     buffer.writeln("  n__ -> ${start.id};");
-  //     for (var ((State source, State target), Set<Letter> letters) in transformedTransitions.pairs) {
-  //       buffer
-  //           .writeln('  ${source.id} -> ${target.id} [label="${letters.map((Letter v) => v.delinearized).join(", ")}"]');
-  //     }
-
-  //     buffer.writeln("}");
-
-  //     return buffer.toString();
-  //   }
 }
 
 // final class NFA extends FiniteAutomata {

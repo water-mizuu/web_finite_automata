@@ -1,18 +1,18 @@
 import { instance } from "@viz-js/viz";
 import { NFA } from "./automata";
-import {
-  Choice,
-  Concatenation,
-  KleeneStar,
-  Letter,
-} from "./regular_expression";
+import { parse } from "./parser";
 
 const viz = await instance();
 
-const regex = new Concatenation(
-  new Choice(new Letter("a"), new Letter("b")),
-  new KleeneStar(new Letter("c")),
-);
-const nfa = NFA.fromGlushkovConstruction(regex);
-const svg = viz.renderSVGElement(nfa.dot());
-document.getElementById("graphviz-output").appendChild(svg);
+const textInput = document.getElementById("regex-input");
+const button = document.getElementById("regex-button");
+button.addEventListener("click", () => {
+  const regex = parse((textInput as HTMLInputElement).value);
+
+  const nfa = NFA.fromGlushkovConstruction(regex);
+  const svg = viz.renderSVGElement(nfa.dot());
+
+  /// We remove the children forcefully.
+  document.getElementById("graphviz-output").innerHTML = "";
+  document.getElementById("graphviz-output").appendChild(svg);
+});
