@@ -29,7 +29,7 @@ export class Letter extends RegularExpression {
   override *getSuffixes() {
     yield this;
   }
-  override *getPairs() {}
+  override *getPairs() { }
   override *getLetters() {
     yield this;
   }
@@ -50,8 +50,8 @@ class Epsilon extends Letter {
     super("", id);
   }
 
-  toString() {
-    return "ε";
+  override toString() {
+    return `ε${this.id == null ? "" : [`${this.id}`]}`;
   }
 
   override get isNullable(): boolean {
@@ -260,22 +260,3 @@ export class KleenePlus extends RegularExpression {
     return [end, new KleenePlus(expression)];
   }
 }
-
-// extension RegularExpressionExtension on RegularExpression {
-//   RegularExpression operator |(RegularExpression other) => Choice(this, other);
-//   RegularExpression operator &(RegularExpression other) => Concatenation(this, other);
-//   RegularExpression get star => KleeneStar(this);
-//   RegularExpression get plus => KleenePlus(this);
-//   RegularExpression get optional => Optional(this);
-// }
-
-// extension StringExtension on String {
-//   Letter get r => Letter(this);
-// }
-
-// extension on String {
-//   String get parenthesize => switch (split("")) {
-//         ["(", ..., ")"] => this,
-//         _ => "($this)",
-//       };
-// }

@@ -1,6 +1,7 @@
 import {
   Choice,
   Concatenation,
+  epsilon,
   KleenePlus,
   KleeneStar,
   Letter,
@@ -9,6 +10,20 @@ import {
 } from "./regular_expression";
 
 export const parse = (text: string): RegularExpression => {
+  const any = (str: string): [string, string | null] => {
+
+    if (str.length > 0 &&
+      str[0] !== "(" &&
+      str[0] !== ")" &&
+      str[0] !== "|" &&
+      str[0] !== "*" &&
+      str[0] !== "+" &&
+      str[0] !== "*") {
+      return [str.substring(1), str[0]];
+    }
+
+    return [str, null];
+  };
   const regex = (pattern: RegExp, str: string): [string, string | null] => {
     const match = str.match(pattern);
     if (match != null) {
@@ -101,8 +116,10 @@ export const parse = (text: string): RegularExpression => {
       return [remaining3, inner];
     }
 
-    let [remaining2, value] = regex(/^[A-Za-z0-9]/, string);
-    if (value != null) {
+    let [remaining2, value] = any(string);
+    if (value == "ε") {
+      return [remaining2, epsilon];
+    } else if (value != null) {
       return [remaining2, new Letter(value)];
     }
 
