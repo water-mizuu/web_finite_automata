@@ -9,7 +9,13 @@ import {
   RegularExpression,
 } from "./regular_expression";
 
-export const parse = (text: string): RegularExpression => {
+/**
+ * Parses [text] into a regular expression object which can be used for manipulation and simulation.
+ * It follows a hybrid of parser combinator and recursive descent techniques.
+ * @param text Input text
+ * @returns A [RegularExpression] object which follows the input text.
+ */
+export const parse = (text: string): RegularExpression | null => {
   const any = (str: string): [string, string | null] => {
 
     if (str.length > 0 &&
@@ -20,14 +26,6 @@ export const parse = (text: string): RegularExpression => {
       str[0] !== "+" &&
       str[0] !== "*") {
       return [str.substring(1), str[0]];
-    }
-
-    return [str, null];
-  };
-  const regex = (pattern: RegExp, str: string): [string, string | null] => {
-    const match = str.match(pattern);
-    if (match != null) {
-      return [str.substring(match[0].length), match[0]];
     }
 
     return [str, null];
@@ -44,6 +42,7 @@ export const parse = (text: string): RegularExpression => {
     parsePostfix: (_: string) => [string, RegularExpression | null],
     parseAtom: (_: string) => [string, RegularExpression | null];
 
+  /// choice = concat ("|" concat)*
   parseChoice = (string: string) => {
     let [remaining, left] = parseConcatenation(string);
     if (left == null) return [string, null];
@@ -56,11 +55,12 @@ export const parse = (text: string): RegularExpression => {
       if (right == null) break;
 
       [remaining, left] = [remaining2, new Choice(left, right)];
-    } while (left != null);
+    } while (true);
 
     return [remaining, left];
   };
 
+  /// concat = postfix postfix*
   parseConcatenation = (string: string) => {
     let [remaining, left] = parsePostfix(string);
     if (left == null) return [string, null];
@@ -70,11 +70,12 @@ export const parse = (text: string): RegularExpression => {
       if (right == null) break;
 
       [remaining, left] = [remaining1, new Concatenation(left, right)];
-    } while (left != null);
+    } while (true);
 
     return [remaining, left];
   };
 
+  /// postfix = atom ("+"|"*"|"?")*
   parsePostfix = (string: string) => {
     let [remaining, body] = parseAtom(string);
     if (body == null) return [string, null];
@@ -99,11 +100,12 @@ export const parse = (text: string): RegularExpression => {
       }
 
       break;
-    } while (body != null);
+    } while (true);
 
     return [remaining, body];
   };
 
+  /// atom = "(" choice ")" | !"(" !")" !"*" !"+" !"?" any
   parseAtom = (string: string): [string, RegularExpression | null] => {
     let [remaining1, lParen] = expect("(", string);
     if (lParen != null) {
@@ -125,6 +127,7 @@ export const parse = (text: string): RegularExpression => {
 
     return [string, null];
   };
+
 
   return parseChoice(text)[1];
 };

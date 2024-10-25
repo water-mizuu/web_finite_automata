@@ -7,7 +7,7 @@ const enum StateName {
 }
 
 export class State {
-  constructor(public id: number, public label: string) {}
+  constructor(public id: number, public label: string) { }
 }
 
 export abstract class FiniteAutomata {
@@ -303,60 +303,97 @@ export class NFA extends FiniteAutomata {
   }
 
   static fromGlushkovConstruction(regularExpression: RegularExpression) {
+    /**
+     * In case anyone tries to read this code, this is slightly convoluted
+     * as it is directly copied from the dart code, which has features that make 
+     * some of these lines easier.
+     * 
+     * For some notation:
+     *   Linearized Regular expression
+     *     - A regular expression which has each of the characters uniquely indexed.
+     *     - These essentially become the states of the automata.
+     *     - If an expression is (ab), linearized it becomes (a[1]b[2]).
+     *   P 
+     *     - The set of all linearized prefix letters.
+     *     - These are the linearized letters which the start state is connected to.
+     *     - If a linearized expression is (a[0]b[1])|(b[2]), then P = {a[0], b[2]}.
+     *   D 
+     *     - The set of all linearized suffix letters.
+     *     - These are the letters which the automata can end in.
+     *     - If a linearized expression is (a[0]b[1])|(b[2]), then D = {b[1], b[2]}.
+     *  F
+     *     - The set of all pairs of linearized letters.
+     *     - These essentially are the transitions in the automata.
+     *     - If a linearized expression is (a[0]b[1])|(b[2]), then F = { (a[0], b[1]) }.
+     *     - Repetition such as Kleene Star generates extra pairs for F.
+     * 
+     *  q[0]
+     *    - Represents the start state with label "1".
+     *    - This is from the algorithm description.
+     *  q[α]
+     *    - Represents the state generated from the letter 'α'.
+     */
     const linearized = regularExpression.getLinearized();
 
-    const prefixes = new Set<Letter>();
-    for (const prefix of linearized.getPrefixes()) {
-      prefixes.add(prefix);
-    }
-    const suffixes = new Set<Letter>();
-    for (const suffix of linearized.getSuffixes()) {
-      suffixes.add(suffix);
-    }
-    const pairs = new Set<[Letter, Letter]>();
-    for (const pair of linearized.getPairs()) {
-      pairs.add(pair);
-    }
+    /// The set P.
+    const prefixes = new Set<Letter>(linearized.getPrefixes());
 
+    /// The set D.
+    const suffixes = new Set<Letter>(linearized.getSuffixes());
+
+    /// The set F.
+    const pairs = new Set<[Letter, Letter]>(linearized.getPairs());
+
+    /// q[0].
     const start = new State(0, "1");
-    const alphabet: Set<Letter> = new Set<Letter>();
 
+    /// This is needed as each 'letter' stands as its own object despite being unlinearized.
     const _uniqueLetter = new Map<String, Letter>();
     for (const letter of regularExpression.getLetters()) {
       _uniqueLetter.set(letter.rawLetter, letter);
     }
-    for (const letter of _uniqueLetter.values()) {
-      alphabet.add(letter);
-    }
+
+    /// Σ
+    const alphabet = new Set<Letter>(_uniqueLetter.values());
 
     /**
      * A utility function that returns the stored letter for a given string.
      *  This is useful as we cannot override equality of objects, so this is an alterantive.
-     * @param rawLetter The raw letter that we want to look for.
+     * @param letter The letter that we want to look for.
      * @returns The cached [Letter] object.
      */
-    const letterOf = (rawLetter: string): Letter =>
-      _uniqueLetter.get(rawLetter);
+    const letterOf = (letter: Letter) => _uniqueLetter.get(letter.rawLetter);
 
-    const states = new Set<State>();
-    states.add(start);
-
+    const states = new Set<State>([start]);
     const accepting = new Set<State>();
-
     if (regularExpression.isNullable) {
       accepting.add(start);
     }
 
+    /**
+     * Each linearized letter becomes its very own Glushkov state.
+     */
     for (const letter of linearized.getLetters()) {
       const stateName = letter.toString();
       const state = new State(letter.id!, stateName);
       states.add(state);
 
+      /**
+       * If the set of suffixes contains this letter, then we add the state to the accepting states.
+       */
       if (suffixes.has(letter)) {
         accepting.add(state);
       }
     }
 
+    /**
+     * Build the transitions.
+     * 
+     * In the original implementation, the map is defined as:
+     *  δ: (State, Letter) -> State.
+     * 
+     * However, since JavaScript does not support immutable tuples, nested maps will do. 
+     */
     const transitions = new Map<State, Map<Letter, Set<State>>>();
     for (const letter of alphabet) {
       if (transitions.get(start) == null) {
@@ -376,30 +413,27 @@ export class NFA extends FiniteAutomata {
     }
 
     /**
-     * We add all of the transitions from the start state to the prefix states.
+     * Each letter in P is connected from q[0] by that letter.
      */
     for (const letter of prefixes) {
-      for (const state of states) {
-        if (state.id !== letter.id) continue;
+      const rightState = [...states].filter((state) => state.id == letter.id)[0];
 
-        transitions //
-          .get(start) //
-          .get(letterOf(letter.rawLetter)) //
-          .add(state);
-      }
+      transitions //
+        .get(start) //
+        .get(letterOf(letter)) //
+        .add(rightState);
     }
 
+    /**
+     * Each [α, β] in F is connected from q[α] to q[β] by β.
+     */
     for (const [left, right] of pairs) {
       const leftState = [...states].filter((state) => state.id == left.id)[0];
+      const rightState = [...states].filter((state) => state.id == right.id)[0];
 
-      for (const state of states) {
-        if (state.id !== right.id) continue;
-
-        transitions //
-          .get(leftState) //
-          .get(letterOf(right.rawLetter)) //
-          .add(state);
-      }
+      transitions.get(leftState)
+        .get(letterOf(right))
+        .add(rightState);
     }
 
     return new NFA(states, alphabet, transitions, start, accepting);
@@ -436,93 +470,6 @@ export class NFA extends FiniteAutomata {
 
 // final class NFA extends FiniteAutomata {
 //   const NFA(this.states, this.alphabet, this._transitions, this.start, this.accepting);
-
-//   factory NFA.fromRegularExpression(
-//     RegularExpression regularExpression, {
-//     NFAConversionMode mode = NFAConversionMode.glushkov,
-//   }) =>
-//       switch (mode) {
-//         NFAConversionMode.glushkov => NFA.fromGlushkovConstruction(regularExpression),
-//         NFAConversionMode.thompson => NFA.fromThompsonConstruction(regularExpression),
-//       };
-
-//   factory NFA.fromGlushkovConstruction(RegularExpression regularExpression) {
-//     RegularExpression linearized = regularExpression.linearized;
-
-//     Set<Letter> prefixes = Set<Letter>.identity()..addAll(linearized.prefixes);
-//     Set<Letter> suffixes = Set<Letter>.identity()..addAll(linearized.suffixes);
-//     Set<(Letter, Letter)> pairs = Set<(Letter, Letter)>.identity()..addAll(linearized.pairs);
-
-//     State start = const State(0, "1");
-//     Set<Letter> alphabet = Set<Letter>.identity()..addAll(regularExpression.letters);
-//     Set<State> states = Set<State>.identity()..add(start);
-//     Set<State> accepting = Set<State>.identity();
-
-//     /// If the regular expression is nullable, the start state is accepting.
-//     /// (This is a bug in the original implementation.)
-//     if (regularExpression.isNullable) {
-//       accepting.add(start);
-//     }
-
-//     for (Letter letter in linearized.letters) {
-//       String stateName = letter.toString();
-//       State state = State(letter.id!, stateName);
-
-//       states.add(state);
-//       if (suffixes.contains(letter)) {
-//         accepting.add(state);
-//       }
-//     }
-
-//     Map<(State, Letter), Set<State>> transitions = <(State, Letter), Set<State>>{
-//       for (Letter letter in alphabet) (start, letter): <State>{},
-//       for (State state in states)
-//         for (Letter letter in alphabet) (state, letter): <State>{},
-//     };
-
-//     for (Letter letter in prefixes) {
-//       states //
-//           .where((State state) => state.id == letter.id)
-//           .forEach(transitions[(start, letter.delinearized)]!.add);
-//     }
-
-//     for (var (Letter left, Letter right) in pairs) {
-//       State originState = states.firstWhere((State state) => state.id == left.id);
-
-//       states //
-//           .where((State state) => state.id == right.id)
-//           .forEach(transitions[(originState, right.delinearized)]!.add);
-//     }
-
-//     return NFA(states, alphabet, transitions, start, accepting);
-//   }
-
-//   factory NFA.fromThompsonConstruction(RegularExpression regularExpression) => regularExpression.thompsonConstruction();
-
-//   /// Σ
-//   @override
-//   final Set<State> states;
-
-//   /// Q
-//   @override
-//   final Set<Letter> alphabet;
-
-//   /// δ : Q × Σ --> Q
-//   final Map<(State, Letter), Set<State>> _transitions;
-
-//   @override
-//   Iterable<(State, Letter, State)> get transitions => _transitions.pairs.expand(
-//         (((State, Letter) key, Set<State> value) triple) =>
-//             triple.$2.map((State right) => (triple.$1.$1, triple.$1.$2, right)),
-//       );
-
-//   /// q₀
-//   @override
-//   final State start;
-
-//   /// F
-//   @override
-//   final Set<State> accepting;
 
 //   NFA removeEpsilonTransitions() {
 //     /// 1. Compute the ε-closure of each state.
