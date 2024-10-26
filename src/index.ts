@@ -87,10 +87,15 @@ const match = debounce(() => {
   const [states, accepts] = globalNfa.acceptsDetailed(input);
   if (accepts) {
     recognizeOutput.textContent = "Recognized.";
+    
+    recognizeOutput.classList.add("success");
+    recognizeOutput.classList.remove("failure");
   } else {
     const currentStates = [...states].map((s) => s.label).join(", ");
 
     recognizeOutput.textContent = `String not accepted. Ending states = {${currentStates}}`;
+    recognizeOutput.classList.add("failure");
+    recognizeOutput.classList.remove("success");
   }
 }, 250);
 

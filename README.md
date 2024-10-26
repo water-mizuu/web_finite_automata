@@ -1,6 +1,6 @@
 # Web Finite Automata
 
-A web-based application that converts regular expressions into equivalent NFA and DFA.
+A web-based application that converts regular expressions into equivalent NFA and DFA. 
 
 ## TODO:
 
