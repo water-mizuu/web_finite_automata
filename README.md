@@ -1,18 +1,6 @@
-# 🚀 Welcome to your new awesome project!
+# Web Finite Automata
 
-This project has been created using **webpack-cli**, you can now run
-
-```
-npm run build
-```
-
-or
-
-```
-yarn build
-```
-
-to bundle your application
+A web-based application that converts regular expressions into equivalent NFA and DFA.
 
 ## TODO:
 

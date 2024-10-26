@@ -45,13 +45,9 @@ export class Letter extends RegularExpression {
   }
 }
 
-class Epsilon extends Letter {
+export class Epsilon extends Letter {
   constructor(id?: number) {
     super("", id);
-  }
-
-  override toString() {
-    return `ε${this.id == null ? "" : [`${this.id}`]}`;
   }
 
   override get isNullable(): boolean {
@@ -60,6 +56,10 @@ class Epsilon extends Letter {
 
   override _getLinearized(start: number): [number, RegularExpression] {
     return [start + 1, new Letter(this.rawLetter, start)];
+  }
+
+  override toString() {
+    return `ε${this.id == null ? "" : [`${this.id}`]}`;
   }
 }
 
