@@ -6,6 +6,7 @@ const viz = await instance();
 
 const regexInput = document.getElementById("regex-input") as HTMLInputElement;
 const stringInput = document.getElementById("string-input") as HTMLInputElement;
+const recognizeOutput = document.getElementById("match-result") as HTMLDivElement;
 
 const debounce = <T extends (...args: object[]) => void>(func: T, delay: number): T => {
   let timeout: NodeJS.Timeout | null = null;
@@ -39,10 +40,21 @@ const convert = debounce(() => {
 }, 250);
 
 const match = debounce(() => {
-  if (nfa == null) return;
+  const input = stringInput.value;
 
-  console.log(nfa.accepts(stringInput.value));
+  if (nfa == null) return;
+  if (input.length <= 0) return;
+
+  const [states, accepts] = nfa.acceptsDetailed(input);
+  if (accepts) {
+    recognizeOutput.textContent = "Recognized.";
+  } else {
+    const currentStates = [...states].map(s => s.label).join(", ");
+
+    recognizeOutput.textContent = `String not accepted. Ending states = {${currentStates}}`;
+  }
 }, 250);
 
 regexInput.addEventListener("input", convert);
+regexInput.addEventListener("input", match);
 stringInput.addEventListener("input", match);

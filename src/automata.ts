@@ -114,6 +114,27 @@ export class NFA extends FiniteAutomata {
     return [...states].filter((i) => this.accepting.has(i)).length > 0;
   }
 
+  acceptsDetailed(str: string): [Set<State>, boolean] {
+    const states = new Set<State>([
+      this.start,
+      ...this.transitionFrom(this.start, ""),
+    ]);
+    const tokens = str.split("");
+
+    for (const token of tokens) {
+      const newStates = new Set(
+        [...states].flatMap((s) => [...this.transitionFrom(s, token)])
+      );
+
+      states.clear();
+      for (const s of newStates) {
+        states.add(s);
+      }
+    }
+
+    return [new Set<State>(states), [...states].filter((i) => this.accepting.has(i)).length > 0];
+  }
+
   /**
    * Returns all of the states reachable from the [state] by [letter] and epsilon transitions.
    * @param state The input state from which the machine needs to transition from.
@@ -526,7 +547,9 @@ export class DFA extends FiniteAutomata {
       buffer.push(`shape=`)
       buffer.push(this.accepting.has(state) ? `doublecircle` : `circle`);
       buffer.push(` label="`);
-      if (blankStates) {
+      if (state.label == "") {
+        buffer.push("∅");
+      } else if (blankStates) {
         buffer.push("");
       } else {
         buffer.push(state.label);
