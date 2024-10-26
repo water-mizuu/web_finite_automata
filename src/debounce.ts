@@ -1,5 +1,5 @@
 
-export const debounce = <T extends (...args: object[]) => void>(
+export const debounce = <T extends (...args: any[]) => void>(
   func: T,
   delay: number
 ): T => {
