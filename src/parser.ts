@@ -12,6 +12,8 @@ import {
 /**
  * Parses [text] into a regular expression object which can be used for manipulation and simulation.
  * It follows a hybrid of parser combinator and recursive descent techniques.
+ * 
+ * This should probably be a class, but whatever.
  * @param text Input text
  * @returns A [RegularExpression] object which follows the input text.
  */
@@ -128,6 +130,11 @@ export const parse = (text: string): RegularExpression | null => {
     return [string, null];
   };
 
+  const [remaining, regularExpression] = parseChoice(text);
 
-  return parseChoice(text)[1];
+  if (remaining.length > 0) {
+    console.warn(`The parsed text did not end with EOF. Ending: '${remaining}'`);
+  }
+
+  return regularExpression;
 };

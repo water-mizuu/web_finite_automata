@@ -7,7 +7,7 @@ const viz = await instance();
 const regexInput = document.getElementById("regex-input") as HTMLInputElement;
 const stringInput = document.getElementById("string-input") as HTMLInputElement;
 
-const debounce = <T extends () => void>(func: T, delay: number): T => {
+const debounce = <T extends (...args: object[]) => void>(func: T, delay: number): T => {
   let timeout: NodeJS.Timeout | null = null;
 
   return ((...args) => {

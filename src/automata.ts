@@ -411,7 +411,16 @@ export class DFA extends FiniteAutomata {
   }
 
   accepts(str: string): boolean {
-    throw new Error("Method not implemented.");
+    let state = this.start;
+    const tokens = str.split("");
+
+    for (const token of tokens) {
+      state = this._transitions.get(state).get(token);
+
+      if (state == null) return false;
+    }
+
+    return this.accepting.has(state);
   }
 
   minimized() {
@@ -427,7 +436,7 @@ export class DFA extends FiniteAutomata {
         /// let X be the set of states for which a transition on c leads to a state in A
         const x = new Set<State>();
         for (const state of this.states) {
-          if ([...a].some((v) => this._transitions.get(state).get(c.rawLetter) == v)) {
+          if ([...a].some((v) => this._transitions.get(state)?.get(c.rawLetter) == v)) {
             x.add(state);
           }
         }
