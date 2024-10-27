@@ -14,7 +14,7 @@ const $$ = document.getElementsByClassName.bind(document) as //
  * Setup the UI necessary scripts.
  */
 
-let activeFiniteAutomata: "glushkov-nfa" | "thompson-nfa" | "dfa" | "minimal-dfa" = "glushkov-nfa";
+let activeFiniteAutomata: Id = "glushkov-nfa";
 
 let globalGlushkovNfa: NFA | undefined;
 let globalGlushkovRenameMap: Map<State, string> | undefined;
@@ -68,17 +68,19 @@ const getActiveAutomata = (): [Map<State, string>, FiniteAutomata] | null => {
   return [activeRenameMap, activeAutomata];
 }
 
-
+type Id = "glushkov-nfa" | "thompson-nfa" | "dfa" | "minimal-dfa";
 type NFALocalSim = {
   string: string | null,
   sequence: (Set<State> | [State, string, State][])[] | null;
   step: number | null;
+  stringOutput: HTMLElement | null;
   svg: SVGSVGElement | null;
 };
 type DFALocalSim = {
   string: string,
   sequence: (State | [State, string, State])[] | null;
   step: number | null;
+  stringOutput: HTMLElement | null;
   svg: SVGSVGElement | null;
 };
 type Simulation = {
@@ -88,42 +90,35 @@ type Simulation = {
     "dfa"?: DFALocalSim,
     "minimal-dfa"?: DFALocalSim,
   },
-  nextStep(id: string): void,
-  previousStep(id: string): void,
-  create(id: string): void,
-  destroy(id: string): void,
-  draw(id: string): void,
+  nextStep(id: Id): void,
+  previousStep(id: Id): void,
+  create(id: Id): void,
+  destroy(id: Id): void,
+  draw(id: Id): void,
 };
 const simulation: Simulation = {
   simulations: {
-    "glushkov-nfa": {
-      string: null,
-      sequence: null,
-      step: null,
-      svg: null,
-    },
+    "glushkov-nfa": { string: null, sequence: null, step: null, stringOutput: null, svg: null, },
+    "thompson-nfa": { string: null, sequence: null, step: null, stringOutput: null, svg: null, },
   },
-  nextStep(this: Simulation, id: string) {
-    if (id != "glushkov-nfa" && id != "thompson-nfa" && id != "dfa" && id != "minimal-dfa") {
+  nextStep(this: Simulation, id: Id) {
+    const sim = this.simulations[id] as NFALocalSim & DFALocalSim;
+    this.draw(id);
+    if (sim.step + 1 >= sim.sequence.length) {
       return;
+    } else {
+      sim.step++;
     }
+  },
+  previousStep(this: Simulation, id: Id) {
 
     const sim = this.simulations[id] as NFALocalSim & DFALocalSim;
-    if (sim.step + 1 >= sim.sequence.length) return;
     this.draw(id);
-
-    sim.step++;
-  },
-  previousStep(this: Simulation, id) {
-    if (id != "glushkov-nfa" && id != "thompson-nfa" && id != "dfa" && id != "minimal-dfa") {
+    if (sim.step - 1 < 0) {
       return;
+    } else {
+      sim.step--;
     }
-
-    const sim = this.simulations[id] as NFALocalSim & DFALocalSim;
-    if (sim.step - 1 < 0) return;
-    this.draw(id);
-
-    sim.step--;
   },
   create(this: Simulation, id) {
     const btn = document.querySelector(`.simulation-button[simulation-id="${id}"]`) as HTMLElement;
@@ -137,6 +132,9 @@ const simulation: Simulation = {
 
     document.getElementById("regex-input").setAttribute("disabled", "true");
     document.getElementById("string-input").setAttribute("disabled", "true");
+    for (const link of document.getElementsByClassName("tablinks")) {
+      link.setAttribute("disabled", "true");
+    }
 
     const textOutput = area.querySelector(`#live-text`) as HTMLDivElement;
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement;
@@ -160,9 +158,10 @@ const simulation: Simulation = {
 
     if (id == "glushkov-nfa" || id == "thompson-nfa") {
       this.simulations[id].string = input;
-      this.simulations[id].sequence = (automata as NFA).generateSequence(input);
-      this.simulations[id].step = -1;
+      this.simulations[id].sequence = [...(automata as NFA).generateSequence(input)];
+      this.simulations[id].step = 0;
       this.simulations[id].svg = svg;
+      this.simulations[id].stringOutput = textOutput;
     } else {
 
       throw new Error("Unimplemented.");
@@ -184,6 +183,10 @@ const simulation: Simulation = {
 
     document.getElementById("regex-input").removeAttribute("disabled");
     document.getElementById("string-input").removeAttribute("disabled");
+    for (const link of document.getElementsByClassName("tablinks")) {
+      link.removeAttribute("disabled");
+    }
+
 
     const textOutput = area.querySelector(`#live-text`) as HTMLDivElement;
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement;
@@ -196,6 +199,7 @@ const simulation: Simulation = {
     this.simulations[id].sequence = null;
     this.simulations[id].step = null;
     this.simulations[id].svg = null;
+    this.simulations[id].stringOutput = null;
   },
   draw(this: Simulation, id) {
     if (id != "glushkov-nfa" && id != "thompson-nfa" && id != "dfa" && id != "minimal-dfa") {
@@ -209,37 +213,62 @@ const simulation: Simulation = {
     for (const colored of sim.svg.querySelectorAll(`.previous[fill="red"]`)) {
       colored.setAttribute("fill", "black");
     }
+    for (let i = 0; i < sim.string.length; ++i) {
+      (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "black";
+    }
 
-    const colorParentOf = (target: HTMLTitleElement) => {
+    const colorParentOf = (target: HTMLTitleElement, color?: string) => {
+      color ??= "red";
+
       if (target == null) return;
 
       const parent = target.parentElement;
 
       for (const element of parent.querySelectorAll(`[stroke="black"]`)) {
-        element.setAttribute("stroke", "red");
+        element.setAttribute("stroke", color);
         element.classList.add("previous");
       }
       for (const element of parent.querySelectorAll(`[fill="black"]`)) {
-        element.setAttribute("fill", "red");
+        element.setAttribute("fill", color);
         element.classList.add("previous");
       }
     };
 
-    if (sim.step == -1) {
+    if (sim.step == 0) {
       /// Highlight the start arrow. Then we move to the different start states.
       const arrow = [...sim.svg.querySelectorAll("title")]
         .filter(s => s.textContent == "n__->0")[0];
 
       colorParentOf(arrow);
-    } else if (sim.step % 2 == 0) {
+    }
+
+    if (sim.step % 2 != 0) {
       /// We are now pointing at (active) states.
+
+
+      for (let i = 0; i < sim.step / 2; ++i) {
+        (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "gray";
+      }
+
       const states = [...sim.sequence[sim.step] as Set<State>];
       const stateTitles = [...sim.svg.querySelectorAll("title")]
         .filter(t => states.some(s => s.id.toString() === t.textContent));
 
-      stateTitles.forEach(colorParentOf);
-    } else if (sim.step % 2 != 0) {
+      stateTitles.forEach(t => colorParentOf(t));
+
+
+    } else if (sim.step % 2 == 0) {
       /// We are looking at transitions.
+
+      /// Color the letters.
+      console.log(sim.step / 2);
+      for (let i = 0; i < sim.step / 2; ++i) {
+        (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "gray";
+      }
+      (sim.stringOutput.querySelector(`[idx="${sim.step / 2}"]`) as HTMLSpanElement).style.color = "red";
+
+
+      /// Draw the different arrows.
       const transitions = sim.sequence[sim.step] as [State, string, State][];
       for (const [from, letter, to] of transitions) {
         const allTitles = [...sim.svg.querySelectorAll("title")];
@@ -248,7 +277,7 @@ const simulation: Simulation = {
         const arrow = [...sim.svg.querySelectorAll("title")]
           .filter(s => s.textContent == `${from.id}->${to.id}`)[0];
 
-        [fromTitle, toTitle, arrow].forEach(colorParentOf);
+        [fromTitle, toTitle, arrow].forEach(t => colorParentOf(t));
       }
       console.log(transitions);
     }
@@ -417,7 +446,7 @@ minimalDfaSwitch.addEventListener("change", (_) => swapText("minimal-dfa"));
 const tabButtons = $$("tab-button") as HTMLCollectionOf<HTMLButtonElement>;
 for (const button of tabButtons) {
   button.addEventListener("click", function (this: HTMLButtonElement) {
-    const id = this.getAttribute("tab-id");
+    const id = this.getAttribute("tab-id") as Id;
     const tabContents = $$("tab-content") as HTMLCollectionOf<HTMLDivElement>;
     for (const tab of tabContents) {
       tab.style.display = "none";
@@ -431,11 +460,8 @@ for (const button of tabButtons) {
     }
 
     this.classList.add("active");
-    if (id === "glushkov-nfa" || id === "thompson-nfa" || id === "dfa" || id === "minimal-dfa") {
-      activeFiniteAutomata = id;
-    } else {
-      console.error(`Unknown id ${id}`);
-    }
+    activeFiniteAutomata = id;
+
 
     match();
   }.bind(button));
@@ -444,7 +470,7 @@ for (const button of tabButtons) {
 const simulationButtons = $$("simulation-button") as HTMLCollectionOf<HTMLButtonElement>;
 for (const button of simulationButtons) {
   button.addEventListener("click", function (this: HTMLButtonElement) {
-    const id = this.getAttribute("simulation-id");
+    const id = this.getAttribute("simulation-id") as Id;
     if (this.classList.contains("next")) {
       simulation.nextStep(id);
     } else if (this.classList.contains("previous")) {

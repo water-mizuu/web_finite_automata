@@ -481,14 +481,33 @@ export class NFA extends FiniteAutomata {
   }
 
   /// This is a mess.
-  generateSequence(str: string): (Set<State> | [State, string, State][])[] {
-    const output: (Set<State> | [State, string, State][])[] = [];
-
+  *generateSequence(str: string): Generator<Set<State> | [State, string, State][]> {
     /// Zeroth: We assume that the states NEVER contain any epsilon intermediates.
-    const states = this.epsilonClosure(new Set([this.start]));
+
+    const firstTransition: [State, string, State][] = [];
+    const states = new Set([this.start]);
+    /// We resolve the epsilon transitions, breadth-first.
+    const seen = new Set<State>(states);
+    const stack = [...states];
+    while (stack.length > 0) {
+      const latest = stack.pop();
+      const epsilonTransitions = this._transitions.get(latest).get(epsilon.rawLetter);
+      for (const target of epsilonTransitions) {
+        firstTransition.push([latest, epsilon.rawLetter, target]);
+
+        if (!seen.has(target)) {
+          seen.add(target);
+          stack.push(target);
+        }
+      }
+    }
+
+    yield firstTransition;
+    states.clear();
+    this.epsilonClosure(new Set([this.start])).forEach(states.add.bind(states));
     const tokens = str.split("");
 
-    output.push(new Set(states));
+    yield new Set(states);
     for (const token of tokens) {
       const transitions: [State, string, State][] = [];
       const newStates = new Set<State>();
@@ -518,20 +537,17 @@ export class NFA extends FiniteAutomata {
         }
       }
 
-      output.push(transitions);
+      yield transitions;
 
-      const actualNewStates = new Set(
-        [...states].flatMap((s) => [...this.transitionFrom(s, token)])
-      );
+      const actualNewStates = new Set([...states].flatMap((s) => [...this.transitionFrom(s, token)]));
 
       states.clear();
       for (const s of actualNewStates) {
         states.add(s);
       }
-      output.push(new Set(states));
-    }
 
-    return output;
+      yield new Set(states);
+    }
   }
 
   /**
