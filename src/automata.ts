@@ -696,6 +696,20 @@ export class DFA extends FiniteAutomata {
     return this.accepting.has(state);
   }
 
+  acceptsDetailed(str: string): [State, boolean] {
+    let state = this.start;
+    const tokens = str.split("");
+
+    for (const token of tokens) {
+      state = this._transitions.get(state).get(token);
+    }
+
+    return [
+      state,
+      this.accepting.has(state),
+    ];
+  }
+
   minimized() {
     const nf = new Set<State>(
       [...this.states].filter((v) => !this.accepting.has(v))
