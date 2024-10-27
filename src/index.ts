@@ -48,20 +48,20 @@ const getActiveAutomata = (): [Map<State, string>, FiniteAutomata] | null => {
   let activeRenameMap: Map<State, string>;
   switch (activeFiniteAutomata) {
     case "glushkov-nfa":
-      activeAutomata = globalGlushkovNfa;
-      activeRenameMap = globalGlushkovRenameMap
+      activeAutomata = globalGlushkovNfa!;
+      activeRenameMap = globalGlushkovRenameMap!;
       break;
     case "thompson-nfa":
-      activeAutomata = globalThompsonNfa;
-      activeRenameMap = globalThompsonRenameMap
+      activeAutomata = globalThompsonNfa!;
+      activeRenameMap = globalThompsonRenameMap!;
       break;
     case "dfa":
-      activeAutomata = globalDfa;
-      activeRenameMap = globalDfaRenameMap;
+      activeAutomata = globalDfa!;
+      activeRenameMap = globalDfaRenameMap!;
       break;
     case "minimal-dfa":
-      activeAutomata = globalMinimalDfa;
-      activeRenameMap = globalMinimalDfaRenameMap;
+      activeAutomata = globalMinimalDfa!;
+      activeRenameMap = globalMinimalDfaRenameMap!;
       break;
   }
 
@@ -70,18 +70,18 @@ const getActiveAutomata = (): [Map<State, string>, FiniteAutomata] | null => {
 
 type Id = "glushkov-nfa" | "thompson-nfa" | "dfa" | "minimal-dfa";
 type NFALocalSim = {
-  string: string | null,
-  sequence: (Set<State> | [State, string, State][])[] | null;
-  step: number | null;
-  stringOutput: HTMLElement | null;
-  svg: SVGSVGElement | null;
+  string: string,
+  sequence: (Set<State> | [State, string, State][])[];
+  step: number;
+  stringOutput: HTMLElement;
+  svg: SVGSVGElement;
 };
 type DFALocalSim = {
   string: string,
-  sequence: (State | [State, string, State])[] | null;
-  step: number | null;
-  stringOutput: HTMLElement | null;
-  svg: SVGSVGElement | null;
+  sequence: (State | [State, string, State])[];
+  step: number;
+  stringOutput: HTMLElement;
+  svg: SVGSVGElement;
 };
 type Simulation = {
   simulations: {
@@ -97,30 +97,18 @@ type Simulation = {
   draw(id: Id): void,
 };
 const simulation: Simulation = {
-  simulations: {
-    "glushkov-nfa": { string: null, sequence: null, step: null, stringOutput: null, svg: null, },
-    "thompson-nfa": { string: null, sequence: null, step: null, stringOutput: null, svg: null, },
-  },
+  simulations: {},
   nextStep(this: Simulation, id: Id) {
     const sim = this.simulations[id] as NFALocalSim & DFALocalSim;
+    sim.step = Math.min(sim.sequence.length - 1, sim.step + 1);
     this.draw(id);
-    if (sim.step + 1 >= sim.sequence.length) {
-      return;
-    } else {
-      sim.step++;
-    }
   },
   previousStep(this: Simulation, id: Id) {
-
     const sim = this.simulations[id] as NFALocalSim & DFALocalSim;
+    sim.step = Math.max(-1, sim.step - 1);
     this.draw(id);
-    if (sim.step - 1 < 0) {
-      return;
-    } else {
-      sim.step--;
-    }
   },
-  create(this: Simulation, id) {
+  create(this: Simulation, id: Id) {
     const btn = document.querySelector(`.simulation-button[simulation-id="${id}"]`) as HTMLElement;
     const area = document.querySelector(`.simulation-area[simulation-id="${id}"]`) as HTMLElement;
     const svgSource = document.getElementById(`graphviz-output-${id}`)?.children?.[0];
@@ -130,14 +118,15 @@ const simulation: Simulation = {
     btn.classList.remove("create");
     btn.classList.add("stop");
 
-    document.getElementById("regex-input").setAttribute("disabled", "true");
-    document.getElementById("string-input").setAttribute("disabled", "true");
+    document.getElementById("regex-input")?.setAttribute("disabled", "true");
+    document.getElementById("string-input")?.setAttribute("disabled", "true");
     for (const link of document.getElementsByClassName("tablinks")) {
       link.setAttribute("disabled", "true");
     }
 
     const textOutput = area.querySelector(`#live-text`) as HTMLDivElement;
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement;
+    if (textOutput == null || svgOutput == null) return;
 
     const input = stringInput.value;
 
@@ -150,18 +139,20 @@ const simulation: Simulation = {
       textOutput.appendChild(element);
     }
 
-    const [renameMap, automata] = getActiveAutomata();
+    const [renameMap, automata] = getActiveAutomata()!;
     const svg = viz.renderSVGElement(automata.dot({ renames: renameMap }));
     svgOutput.appendChild(svg);
 
     area.style.display = "block";
 
     if (id == "glushkov-nfa" || id == "thompson-nfa") {
-      this.simulations[id].string = input;
-      this.simulations[id].sequence = [...(automata as NFA).generateSequence(input)];
-      this.simulations[id].step = 0;
-      this.simulations[id].svg = svg;
-      this.simulations[id].stringOutput = textOutput;
+      this.simulations[id] = {
+        string: input,
+        sequence: [...(automata as NFA).generateSequence(input)],
+        step: -1,
+        svg: svg,
+        stringOutput: textOutput,
+      };
     } else {
 
       throw new Error("Unimplemented.");
@@ -170,10 +161,7 @@ const simulation: Simulation = {
       // this.simulations[id].step = 0;
     }
   },
-  destroy(this: Simulation, id) {
-    if (id != "glushkov-nfa" && id != "thompson-nfa" && id != "dfa" && id != "minimal-dfa") {
-      return;
-    }
+  destroy(this: Simulation, id: Id) {
     const btn = document.querySelector(`.simulation-button[simulation-id="${id}"]`) as HTMLElement;
     const area = document.querySelector(`.simulation-area[simulation-id="${id}"]`) as HTMLElement;
 
@@ -181,8 +169,8 @@ const simulation: Simulation = {
     btn.classList.remove("stop");
     btn.classList.add("create");
 
-    document.getElementById("regex-input").removeAttribute("disabled");
-    document.getElementById("string-input").removeAttribute("disabled");
+    document.getElementById("regex-input")?.removeAttribute("disabled");
+    document.getElementById("string-input")?.removeAttribute("disabled");
     for (const link of document.getElementsByClassName("tablinks")) {
       link.removeAttribute("disabled");
     }
@@ -190,39 +178,41 @@ const simulation: Simulation = {
 
     const textOutput = area.querySelector(`#live-text`) as HTMLDivElement;
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement;
+    if (textOutput == null || svgOutput == null) return;
+
     textOutput.innerHTML = "";
     svgOutput.innerHTML = "";
 
     area.style.display = "none";
 
-    this.simulations[id].string = null;
-    this.simulations[id].sequence = null;
-    this.simulations[id].step = null;
-    this.simulations[id].svg = null;
-    this.simulations[id].stringOutput = null;
+    delete this.simulations[id];
   },
-  draw(this: Simulation, id) {
-    if (id != "glushkov-nfa" && id != "thompson-nfa" && id != "dfa" && id != "minimal-dfa") {
-      return;
-    }
-
+  draw(this: Simulation, id: Id) {
     const sim = this.simulations[id] as NFALocalSim;
+
+    /// We color the previouses black.
     for (const colored of sim.svg.querySelectorAll(`.previous[stroke="red"]`)) {
       colored.setAttribute("stroke", "black");
     }
     for (const colored of sim.svg.querySelectorAll(`.previous[fill="red"]`)) {
       colored.setAttribute("fill", "black");
     }
-    for (let i = 0; i < sim.string.length; ++i) {
-      (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "black";
+    for (const prev of sim.svg.querySelectorAll(".previous")) {
+      prev.classList.remove("previous");
     }
 
-    const colorParentOf = (target: HTMLTitleElement, color?: string) => {
+    for (let i = 0; i < sim.string.length; ++i) {
+      const span = sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement;
+
+      span.style.color = "black";
+    }
+
+    const colorParentOf = (target: HTMLTitleElement | null, color?: string) => {
       color ??= "red";
 
       if (target == null) return;
-
       const parent = target.parentElement;
+      if (parent == null) return;
 
       for (const element of parent.querySelectorAll(`[stroke="black"]`)) {
         element.setAttribute("stroke", color);
@@ -234,6 +224,8 @@ const simulation: Simulation = {
       }
     };
 
+    if (sim.step < 0) return;
+
     if (sim.step == 0) {
       /// Highlight the start arrow. Then we move to the different start states.
       const arrow = [...sim.svg.querySelectorAll("title")]
@@ -244,9 +236,7 @@ const simulation: Simulation = {
 
     if (sim.step % 2 != 0) {
       /// We are now pointing at (active) states.
-
-
-      for (let i = 0; i < sim.step / 2; ++i) {
+      for (let i = 0; i < sim.step / 2 - 1; ++i) {
         (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "gray";
       }
 
@@ -255,29 +245,31 @@ const simulation: Simulation = {
         .filter(t => states.some(s => s.id.toString() === t.textContent));
 
       stateTitles.forEach(t => colorParentOf(t));
-
-
     } else if (sim.step % 2 == 0) {
       /// We are looking at transitions.
 
       /// Color the letters.
-      console.log(sim.step / 2);
-      for (let i = 0; i < sim.step / 2; ++i) {
-        (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "gray";
-      }
-      (sim.stringOutput.querySelector(`[idx="${sim.step / 2}"]`) as HTMLSpanElement).style.color = "red";
+      const half = sim.step / 2;
+      const spans: HTMLSpanElement[] = [];
+      for (let i = 0; i < half; ++i) {
+        const span = sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement;
 
+        span.style.color = "grey";
+        spans.push(span);
+      }
+      if (spans.length > 0) {
+        spans.at(-1)!.style.color = "red";
+      }
 
       /// Draw the different arrows.
       const transitions = sim.sequence[sim.step] as [State, string, State][];
-      for (const [from, letter, to] of transitions) {
+      for (const [from, _, to] of transitions) {
         const allTitles = [...sim.svg.querySelectorAll("title")];
         const fromTitle = allTitles.filter(t => from.id.toString() == t.textContent)[0];
-        const toTitle = allTitles.filter(t => to.id.toString() == t.textContent)[0];
         const arrow = [...sim.svg.querySelectorAll("title")]
           .filter(s => s.textContent == `${from.id}->${to.id}`)[0];
 
-        [fromTitle, toTitle, arrow].forEach(t => colorParentOf(t));
+        [fromTitle, arrow].forEach(t => colorParentOf(t));
       }
       console.log(transitions);
     }
@@ -301,8 +293,9 @@ const renderSvgElementForAutomata = (automata: FiniteAutomata)
 
     const svgLabel = texts.filter(s => state.label == s.textContent)[0];
     const query = svgLabel
-      .previousElementSibling
-      .getAttribute("cx");
+      ?.previousElementSibling
+      ?.getAttribute("cx");
+    if (query == null) continue;
 
     const xPosition = parseInt(query);
 
@@ -315,10 +308,10 @@ const renderSvgElementForAutomata = (automata: FiniteAutomata)
   const renameMap = new Map<State, string>();
   while (queue.length > 0) {
     const label = `q${renameMap.size + 1}`;
-    const [stateId,] = queue.pop();
+    const [stateId,] = queue.pop()!;
     queue.sort(([, a], [, b]) => b - a);
 
-    renameMap.set(idMap.get(stateId), label);
+    renameMap.set(idMap.get(stateId)!, label);
   }
 
   const svgOutput = viz.renderSVGElement(automata.dot({ renames: renameMap }));
@@ -347,7 +340,7 @@ const convert = debounce(() => {
   const regex = parse(regexInput.value);
   if (regex == null) return;
 
-  const activeTab = document.querySelector(".tab-button.active").getAttribute("tab-id");
+  const activeTab = document.querySelector(".tab-button.active")?.getAttribute("tab-id");
   console.log(activeTab);
 
   const glushkovNfa = NFA.fromGlushkovConstruction(regex);
@@ -356,32 +349,32 @@ const convert = debounce(() => {
   globalGlushkovRenameMap = rename1;
 
   /// We remove the children forcefully.
-  document.getElementById("graphviz-output-glushkov-nfa").innerHTML = "";
-  document.getElementById("graphviz-output-glushkov-nfa").appendChild(svg1);
+  document.getElementById("graphviz-output-glushkov-nfa")!.innerHTML = "";
+  document.getElementById("graphviz-output-glushkov-nfa")!.appendChild(svg1);
 
   const thompsonNfa = NFA.fromThompsonConstruction(regex);
   const [rename2, svg2] = renderSvgElementForAutomata(thompsonNfa);
   globalThompsonNfa = thompsonNfa;
   globalThompsonRenameMap = rename2;
   /// We remove the children forcefully.
-  document.getElementById("graphviz-output-thompson-nfa").innerHTML = "";
-  document.getElementById("graphviz-output-thompson-nfa").appendChild(svg2);
+  document.getElementById("graphviz-output-thompson-nfa")!.innerHTML = "";
+  document.getElementById("graphviz-output-thompson-nfa")!.appendChild(svg2);
 
   const dfa = glushkovNfa.toDFA({ includeDeadState: dfaSwitch.checked });
   const [rename3, svg3] = renderSvgElementForAutomata(dfa);
   globalDfa = dfa;
   globalDfaRenameMap = rename3;
 
-  document.getElementById("graphviz-output-dfa").innerHTML = "";
-  document.getElementById("graphviz-output-dfa").appendChild(svg3);
+  document.getElementById("graphviz-output-dfa")!.innerHTML = "";
+  document.getElementById("graphviz-output-dfa")!.appendChild(svg3);
 
   const minimalDfa = thompsonNfa.toDFA({ includeDeadState: minimalDfaSwitch.checked }).minimized();
   const [rename4, svg4] = renderSvgElementForAutomata(minimalDfa);
   globalMinimalDfa = minimalDfa;
   globalMinimalDfaRenameMap = rename4;
 
-  document.getElementById("graphviz-output-minimal-dfa").innerHTML = "";
-  document.getElementById("graphviz-output-minimal-dfa").appendChild(svg4);
+  document.getElementById("graphviz-output-minimal-dfa")!.innerHTML = "";
+  document.getElementById("graphviz-output-minimal-dfa")!.appendChild(svg4);
 }, 250);
 
 const match = debounce(() => {
@@ -390,7 +383,7 @@ const match = debounce(() => {
   if (activeFiniteAutomata == null) return;
   if (input.length <= 0) return;
 
-  const [renameMap, automata] = getActiveAutomata();
+  const [renameMap, automata] = getActiveAutomata()!;
   if (automata instanceof NFA) {
     const [states, accepts] = automata.acceptsDetailed(input);
     if (accepts) {

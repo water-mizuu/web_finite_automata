@@ -84,7 +84,11 @@ body {
 }
 
 .simulation-button.create { display: none; }
-.simulation-area { display: none; }
+.simulation-area {
+  display: none;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
 
 /* SWITCH BUTTON THING */
 

@@ -438,7 +438,7 @@ export class NFA extends FiniteAutomata {
           }
         }
       }
-    }.call(this);
+    }.call(this) as Generator<[State, Letter, State]>;
   }
 
   accepts(str: string): boolean {
@@ -490,8 +490,11 @@ export class NFA extends FiniteAutomata {
     const seen = new Set<State>(states);
     const stack = [...states];
     while (stack.length > 0) {
-      const latest = stack.pop();
-      const epsilonTransitions = this._transitions.get(latest).get(epsilon.rawLetter);
+      const latest = stack.pop()!;
+      const hasEpsilonTransitions = this._transitions.get(latest).has(epsilon.rawLetter);
+      if (!hasEpsilonTransitions) continue;
+
+      const epsilonTransitions = this._transitions.get(latest).get(epsilon.rawLetter)!;
       for (const target of epsilonTransitions) {
         firstTransition.push([latest, epsilon.rawLetter, target]);
 
@@ -513,7 +516,7 @@ export class NFA extends FiniteAutomata {
       const newStates = new Set<State>();
 
       for (const source of states) {
-        const localNewStates = this._transitions.get(source).get(token);
+        const localNewStates = this._transitions.get(source).get(token)!;
 
         for (const target of localNewStates) {
           newStates.add(target);
@@ -525,9 +528,9 @@ export class NFA extends FiniteAutomata {
       const seen = new Set<State>(newStates);
       const stack = [...newStates];
       while (stack.length > 0) {
-        const latest = stack.pop();
+        const latest = stack.pop()!;
         const epsilonTransitions = this._transitions.get(latest).get(epsilon.rawLetter);
-        for (const target of epsilonTransitions) {
+        for (const target of epsilonTransitions!) {
           transitions.push([latest, epsilon.rawLetter, target]);
 
           if (!seen.has(target)) {
@@ -584,14 +587,14 @@ export class NFA extends FiniteAutomata {
 
     const stack = [...stateInput];
     while (stack.length > 0) {
-      const current = stack.pop();
+      const current = stack.pop()!;
 
       if (!isIntermediate(current)) {
         states.add(current);
       }
 
       if (!this._transitions.get(current).has(epsilon.rawLetter)) continue;
-      for (const target of this._transitions.get(current).get(epsilon.rawLetter)) {
+      for (const target of this._transitions.get(current).get(epsilon.rawLetter)!) {
         if (!seen.has(target)) {
           seen.add(target);
 
@@ -635,7 +638,7 @@ export class NFA extends FiniteAutomata {
           stateCounter.set(label, stateCounter.size);
         }
 
-        const id = stateCounter.get(label);
+        const id = stateCounter.get(label)!;
         state = new State(id, label);
       }
 
@@ -654,7 +657,7 @@ export class NFA extends FiniteAutomata {
     const queue = [this.epsilonClosure(new Set([this.start]))];
     const [_, start] = createOrGetState(queue[0]);
     while (queue.length > 0) {
-      const current = queue.shift();
+      const current = queue.shift()!;
       const [_, fromState] = createOrGetState(current);
 
       for (const letter of alphabet) {
@@ -750,7 +753,7 @@ export class DFA extends FiniteAutomata {
           yield [state, letter, targets];
         }
       }
-    }.call(this);
+    }.call(this) as Generator<[State, Letter, State]>;
   }
 
   accepts(str: string): boolean {
@@ -758,7 +761,7 @@ export class DFA extends FiniteAutomata {
     const tokens = str.split("");
 
     for (const token of tokens) {
-      state = this._transitions.get(state).get(token);
+      state = this._transitions.get(state).get(token)!;
 
       if (state == null) return false;
     }
@@ -771,7 +774,7 @@ export class DFA extends FiniteAutomata {
     const tokens = str.split("");
 
     for (const token of tokens) {
-      state = this._transitions.get(state).get(token);
+      state = this._transitions.get(state).get(token)!;
     }
 
     return [
@@ -854,18 +857,18 @@ export class DFA extends FiniteAutomata {
     const transitions: DFATransitions = new DefaultMap(_ => new Map());
     for (const [origin, subMap] of this._transitions.entries()) {
       for (const [letter, target] of subMap.entries()) {
-        const equivalentOrigin = equivalentStates.get(origin);
-        const equivalentTarget = equivalentStates.get(target);
+        const equivalentOrigin = equivalentStates.get(origin)!;
+        const equivalentTarget = equivalentStates.get(target)!;
 
         transitions.get(equivalentOrigin).set(letter, equivalentTarget);
       }
     }
 
-    const start = equivalentStates.get(this.start);
+    const start = equivalentStates.get(this.start)!;
 
     const accepting = new Set<State>();
     for (const state of this.accepting) {
-      accepting.add(equivalentStates.get(state));
+      accepting.add(equivalentStates.get(state)!);
     }
 
     return new DFA(states, alphabet, transitions, start, accepting);
