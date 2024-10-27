@@ -874,6 +874,21 @@ export class DFA extends FiniteAutomata {
     return new DFA(states, alphabet, transitions, start, accepting);
   }
 
+  *generateSequence(str: string): Generator<State | [State, string, State]> {
+    yield [this.start, "", this.start];
+    let state = this.start;
+    const tokens = str.split("");
+
+    yield state;
+    for (const token of tokens) {
+      const next = this._transitions.get(state).get(token)!;
+      yield [state, token, next];
+
+      state = next;
+      yield state;
+    }
+  }
+
   dot({
     blankStates = false,
     renames = null

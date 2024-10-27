@@ -139,11 +139,17 @@ input:checked+.slider {
 input:focus+.slider {
   box-shadow: 0 0 1px #2196F3;
 }
+input[disabled]+.slider {
+  background-color: rgb(171, 171, 171);
+}
 
+input[disabled]+.slider:before {
+  background-color: rgb(208, 208, 208);
+}
 input:checked+.slider:before {
-  -webkit-transform: translateX(16px);
-  -ms-transform: translateX(16px);
-  transform: translateX(16px);
+  -webkit-transform: translateX(17px);
+  -ms-transform: translateX(17px);
+  transform: translateX(17px);
 }
 
 /* Rounded sliders */
