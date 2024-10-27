@@ -480,6 +480,60 @@ export class NFA extends FiniteAutomata {
     ];
   }
 
+  /// This is a mess.
+  generateSequence(str: string): (Set<State> | [State, string, State][])[] {
+    const output: (Set<State> | [State, string, State][])[] = [];
+
+    /// Zeroth: We assume that the states NEVER contain any epsilon intermediates.
+    const states = this.epsilonClosure(new Set([this.start]));
+    const tokens = str.split("");
+
+    output.push(new Set(states));
+    for (const token of tokens) {
+      const transitions: [State, string, State][] = [];
+      const newStates = new Set<State>();
+
+      for (const source of states) {
+        const localNewStates = this._transitions.get(source).get(token);
+
+        for (const target of localNewStates) {
+          newStates.add(target);
+          transitions.push([source, token, target]);
+        }
+      }
+
+      /// We resolve the epsilon transitions, breadth-first.
+      const seen = new Set<State>(newStates);
+      const stack = [...newStates];
+      while (stack.length > 0) {
+        const latest = stack.pop();
+        const epsilonTransitions = this._transitions.get(latest).get(epsilon.rawLetter);
+        for (const target of epsilonTransitions) {
+          transitions.push([latest, epsilon.rawLetter, target]);
+
+          if (!seen.has(target)) {
+            seen.add(target);
+            stack.push(target);
+          }
+        }
+      }
+
+      output.push(transitions);
+
+      const actualNewStates = new Set(
+        [...states].flatMap((s) => [...this.transitionFrom(s, token)])
+      );
+
+      states.clear();
+      for (const s of actualNewStates) {
+        states.add(s);
+      }
+      output.push(new Set(states));
+    }
+
+    return output;
+  }
+
   /**
    * Returns all of the states reachable from the [state] by [letter] and epsilon transitions.
    * @param state The input state from which the machine needs to transition from.

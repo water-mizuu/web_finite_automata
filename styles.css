@@ -83,6 +83,9 @@ body {
   color:rgb(57, 143, 23);
 }
 
+.simulation-button.create { display: none; }
+.simulation-area { display: none; }
+
 /* SWITCH BUTTON THING */
 
 /* The switch - the box around the slider */
