@@ -1,6 +1,6 @@
 import { instance } from "@viz-js/viz";
 import "../styles.css";
-import { NFA } from "./automata";
+import { FiniteAutomata, NFA, State } from "./automata";
 import { debounce } from "./debounce";
 import { parse } from "./parser";
 
@@ -46,40 +46,77 @@ const dfaSwitch = $(`dfa-switch`) as HTMLInputElement;
 const minimalDfaSwitch = $(`minimal-dfa-switch`) as HTMLInputElement;
 
 let globalNfa: NFA | undefined;
+
+/// Returns the rename map (State -> string) and SVG rendering.
+///   This is quite slow, as it requires two passes.
+const renderSvgElementForAutomata = (automata: FiniteAutomata)
+  : [Map<State, string>, SVGSVGElement] => {
+  const svgKey = viz.renderSVGElement(automata.dot({ blankStates: false }));
+
+  const idMap = new Map<number, State>();
+  const labelMap = new Map<number, Element>();
+  const queue = [];
+  const texts = [...svgKey.querySelectorAll(".node text")];
+  for (const state of automata.states) {
+    if (state.label == "") continue;
+
+    const svgLabel = texts.filter(s => state.label == s.textContent)[0];
+    const query = svgLabel
+      .previousElementSibling
+      .getAttribute("cx");
+
+    const xPosition = parseInt(query);
+
+    queue.push([state.id, xPosition]);
+    labelMap.set(state.id, svgLabel);
+    idMap.set(state.id, state);
+  }
+
+  queue.sort(([, a], [, b]) => b - a);
+  const renameMap = new Map<State, string>();
+  while (queue.length > 0) {
+    const label = `q${renameMap.size + 1}`;
+    const [stateId,] = queue.pop();
+    queue.sort(([, a], [, b]) => b - a);
+
+    renameMap.set(idMap.get(stateId), label);
+  }
+
+  const svgOutput = viz.renderSVGElement(automata.dot({ renames: renameMap }));
+
+  return [renameMap, svgOutput];
+}
 const convert = debounce(() => {
   const regex = parse(regexInput.value);
   if (regex == null) return;
 
   const nfa = NFA.fromGlushkovConstruction(regex);
-  const svg1 = viz.renderSVGElement(nfa.dot({ blankStates: false }));
+  const [rename1, svg1] = renderSvgElementForAutomata(nfa);
 
   /// We remove the children forcefully.
   document.getElementById("graphviz-output-glushkov-nfa").innerHTML = "";
   document.getElementById("graphviz-output-glushkov-nfa").appendChild(svg1);
 
   const nfa2 = NFA.fromThompsonConstruction(regex);
-  const svg2 = viz.renderSVGElement(nfa2.dot({ blankStates: true }));
-
-  console.log(nfa2);
+  const [rename2, svg2] = renderSvgElementForAutomata(nfa2);
 
   /// We remove the children forcefully.
   document.getElementById("graphviz-output-thompson-nfa").innerHTML = "";
   document.getElementById("graphviz-output-thompson-nfa").appendChild(svg2);
 
-
   const dfa = nfa.toDFA({ includeDeadState: dfaSwitch.checked });
-  const svg3 = viz.renderSVGElement(dfa.dot({ blankStates: true }));
+  const [rename3, svg3] = renderSvgElementForAutomata(dfa);
 
   document.getElementById("graphviz-output-dfa").innerHTML = "";
   document.getElementById("graphviz-output-dfa").appendChild(svg3);
 
-  const minimalDfa = nfa.toDFA({ includeDeadState: minimalDfaSwitch.checked }).minimized();
-  const svg4 = viz.renderSVGElement(minimalDfa.dot({ blankStates: true }));
+  const minimalDfa = nfa2.toDFA({ includeDeadState: minimalDfaSwitch.checked }).minimized();
+  const [rename4, svg4] = renderSvgElementForAutomata(minimalDfa);
 
   document.getElementById("graphviz-output-minimal-dfa").innerHTML = "";
   document.getElementById("graphviz-output-minimal-dfa").appendChild(svg4);
 
-  globalNfa = nfa;
+  globalNfa = nfa2;
 }, 250);
 
 const match = debounce(() => {

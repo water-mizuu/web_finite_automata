@@ -17,7 +17,6 @@ export class State {
   ) { }
 }
 
-
 export abstract class FiniteAutomata {
   abstract accepts(str: string): boolean;
 
@@ -52,8 +51,9 @@ export abstract class FiniteAutomata {
   abstract get accepting(): Set<State>;
 
   *aggregatedTransitions(): Generator<[State, Letter[], State]> {
-    const map = new DefaultMap<State, DefaultMap<State, Letter[]>>
-      ((_) => new DefaultMap((_) => [] as Letter[]));
+    const map = new DefaultMap<State, DefaultMap<State, Letter[]>>(
+      _ => new DefaultMap(_ => [] as Letter[])
+    );
 
     for (const [source, letter, target] of this.transitions) {
       map //
@@ -68,6 +68,8 @@ export abstract class FiniteAutomata {
       }
     }
   }
+
+  abstract dot(_: { blankStates?: boolean, renames?: Map<State, string> }): string;
 }
 
 type NFATransitions = DefaultMap<State, DefaultMap<string, Set<State>>>;
@@ -168,13 +170,17 @@ export class NFA extends FiniteAutomata {
      *
      * However, since JavaScript does not support immutable tuples, nested maps will do.
      */
-    const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap(_ => new Set()));
+    const transitions: NFATransitions = new DefaultMap(
+      _ => new DefaultMap(_ => new Set())
+    );
 
     /**
      * Each letter in P is connected from q[0] by that letter.
      */
     for (const letter of prefixes) {
-      const rightState = [...states].filter((state) => state.id == letter.id)[0];
+      const rightState = [...states].filter(
+        (state) => state.id == letter.id
+      )[0];
 
       transitions.get(start).get(letter.rawLetter).add(rightState);
     }
@@ -200,7 +206,7 @@ export class NFA extends FiniteAutomata {
 
   static _thompsonConstruction(
     regularExpression: RegularExpression,
-    idStart: number,
+    idStart: number
   ): [id: number, result: NFA] {
     /**
      * Thompson Construction works by recursively converting different 'clauses'
@@ -215,7 +221,9 @@ export class NFA extends FiniteAutomata {
       const end = new State(id++, `${id - 1}`);
       const states = new Set<State>([start, end]);
       const alphabet = new Set<Letter>([regularExpression]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap(_ => new Set()));
+      const transitions: NFATransitions = new DefaultMap(
+        _ => new DefaultMap(_ => new Set())
+      );
       transitions.get(start).get(regularExpression.rawLetter).add(end);
 
       const accepting = new Set<State>([end]);
@@ -237,11 +245,20 @@ export class NFA extends FiniteAutomata {
       const rightStart = rightNfa.start;
       const rightEnd = [...rightNfa.accepting][0];
 
-      const states = new Set<State>([start, end, ...leftNfa.states, ...rightNfa.states]);
+      const states = new Set<State>([
+        start,
+        end,
+        ...leftNfa.states,
+        ...rightNfa.states,
+      ]);
 
       // This might produce duplicates.
       // TODO: Fix.
-      const alphabet = new Set<Letter>([epsilon, ...leftNfa.alphabet, ...rightNfa.alphabet]);
+      const alphabet = new Set<Letter>([
+        epsilon,
+        ...leftNfa.alphabet,
+        ...rightNfa.alphabet,
+      ]);
       /// This is for checking.
       const uniques = new Set<string>();
       for (const letter of alphabet) {
@@ -251,7 +268,7 @@ export class NFA extends FiniteAutomata {
         console.warn("Duplicate detected in Thompson Construction!");
       }
 
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap(_ => new Set()));
+      const transitions: NFATransitions = new DefaultMap(_ => new DefaultMap(_ => new Set()));
       for (const transitionTable of [leftNfa._transitions, rightNfa._transitions]) {
         for (const [source, subMap] of transitionTable.entries()) {
           for (const [symbol, targets] of subMap.entries()) {
@@ -261,7 +278,9 @@ export class NFA extends FiniteAutomata {
       }
 
       /// Add the ε-transitions from q to q[L] and q[R].
-      transitions.get(start).set(epsilon.rawLetter, new Set([leftStart, rightStart]));
+      transitions
+        .get(start)
+        .set(epsilon.rawLetter, new Set([leftStart, rightStart]));
 
       /// Add the ε-transition from f[L] to f.
       transitions.get(leftEnd).get(epsilon.rawLetter).add(end);
@@ -269,9 +288,11 @@ export class NFA extends FiniteAutomata {
       /// Add the ε-transition from f[R] to f.
       transitions.get(rightEnd).get(epsilon.rawLetter).add(end);
 
-      return [id, new NFA(states, alphabet, transitions, start, new Set<State>([end]))];
+      return [
+        id,
+        new NFA(states, alphabet, transitions, start, new Set<State>([end])),
+      ];
     } else if (regularExpression instanceof Concatenation) {
-
       let id = idStart;
 
       let leftNfa: NFA;
@@ -287,8 +308,11 @@ export class NFA extends FiniteAutomata {
 
       const statesArray = [...leftNfa.states, ...rightNfa.states].filter(s => s != leftEnd);
       const states = new Set<State>(statesArray);
-      const alphabet = new Set<Letter>([...leftNfa.alphabet, ...rightNfa.alphabet]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap(_ => new Set()));
+      const alphabet = new Set<Letter>([
+        ...leftNfa.alphabet,
+        ...rightNfa.alphabet,
+      ]);
+      const transitions: NFATransitions = new DefaultMap(_ => new DefaultMap(_ => new Set()));
       for (const transitionTable of [leftNfa._transitions, rightNfa._transitions]) {
         for (const [source, subMap] of transitionTable.entries()) {
           for (const [symbol, targets] of subMap.entries()) {
@@ -306,7 +330,10 @@ export class NFA extends FiniteAutomata {
         }
       }
 
-      return [id, new NFA(states, alphabet, transitions, leftStart, new Set([rightEnd]))];
+      return [
+        id,
+        new NFA(states, alphabet, transitions, leftStart, new Set([rightEnd])),
+      ];
     } else if (regularExpression instanceof Optional) {
       let id = idStart;
       let innerNfa: NFA;
@@ -317,7 +344,9 @@ export class NFA extends FiniteAutomata {
 
       const states = new Set(innerNfa.states);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap(_ => new Set()));
+      const transitions: NFATransitions = new DefaultMap(
+        _ => new DefaultMap(_ => new Set())
+      );
       for (const [source, subMap] of innerNfa._transitions.entries()) {
         for (const [symbol, targets] of subMap.entries()) {
           transitions.get(source).set(symbol, new Set(targets));
@@ -325,7 +354,10 @@ export class NFA extends FiniteAutomata {
       }
       transitions.get(innerStart).get(epsilon.rawLetter).add(innerEnd);
 
-      return [id, new NFA(states, alphabet, transitions, innerStart, new Set([innerEnd]))];
+      return [
+        id,
+        new NFA(states, alphabet, transitions, innerStart, new Set([innerEnd])),
+      ];
     } else if (regularExpression instanceof KleeneStar) {
       let id = idStart;
       const start = new State(id++, `${id - 1}`);
@@ -338,10 +370,11 @@ export class NFA extends FiniteAutomata {
 
       const states = new Set([start, end, ...innerNfa.states]);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap(_ => new Set()));
+      const transitions: NFATransitions = new DefaultMap(
+        _ => new DefaultMap(_ => new Set())
+      );
       for (const [source, subMap] of innerNfa._transitions.entries()) {
         for (const [symbol, targets] of subMap.entries()) {
-
           transitions.get(source).set(symbol, new Set(targets));
         }
       }
@@ -352,10 +385,11 @@ export class NFA extends FiniteAutomata {
       /// Add epsilon transition from f to q.
       transitions.get(innerEnd).get(epsilon.rawLetter).add(innerStart).add(end);
 
-
-      return [id, new NFA(states, alphabet, transitions, start, new Set([end]))];
+      return [
+        id,
+        new NFA(states, alphabet, transitions, start, new Set([end])),
+      ];
     } else if (regularExpression instanceof KleenePlus) {
-
       let id = idStart;
       const start = new State(id++, `${id - 1}`);
       const end = new State(id++, `${id - 1}`);
@@ -367,21 +401,25 @@ export class NFA extends FiniteAutomata {
 
       const states = new Set([start, end, ...innerNfa.states]);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap(_ => new Set()));
+      const transitions: NFATransitions = new DefaultMap(
+        _ => new DefaultMap(_ => new Set())
+      );
       for (const [source, subMap] of innerNfa._transitions.entries()) {
         for (const [symbol, targets] of subMap.entries()) {
           transitions.get(source).set(symbol, new Set(targets));
         }
       }
 
-      /// Add epsilon transition from `q` to `q[L]` and `f`.
+      /// Add epsilon transition from `q` to `q[L]`.
       transitions.get(start).get(epsilon.rawLetter).add(innerStart);
 
       /// Add epsilon transition from f to q.
       transitions.get(innerEnd).get(epsilon.rawLetter).add(innerStart).add(end);
 
-
-      return [id, new NFA(states, alphabet, transitions, start, new Set([end]))];
+      return [
+        id,
+        new NFA(states, alphabet, transitions, start, new Set([end])),
+      ];
     } else {
       throw new Error(`Unidentified runtime type ${regularExpression}.`);
     }
@@ -404,10 +442,7 @@ export class NFA extends FiniteAutomata {
   }
 
   accepts(str: string): boolean {
-    const states = new Set<State>([
-      this.start,
-      ...this.transitionFrom(this.start, ""),
-    ]);
+    const states = this.epsilonClosure(new Set([this.start]));
     const tokens = str.split("");
 
     for (const token of tokens) {
@@ -425,10 +460,7 @@ export class NFA extends FiniteAutomata {
   }
 
   acceptsDetailed(str: string): [Set<State>, boolean] {
-    const states = new Set<State>([
-      this.start,
-      ...this.transitionFrom(this.start, ""),
-    ]);
+    const states = this.epsilonClosure(new Set([this.start]));
     const tokens = str.split("");
 
     for (const token of tokens) {
@@ -460,15 +492,43 @@ export class NFA extends FiniteAutomata {
       states.add(target);
     }
 
-    const stack = [...states];
+    return this.epsilonClosure(states);
+  }
+
+  /**
+   * A special case of the epsilon-closure, which only returns non-intermediate states.
+   * @param stateInput The set of states which work as a source state.
+   * @returns All of the (non-intermediate) states reachable by epsilon transitions.
+   */
+  epsilonClosure(stateInput: Set<State>): Set<State> {
+    const seen = new Set<State>();
+    const states = new Set<State>();
+
+    /**
+     * A state can be said to be "intermediate" if the only outward transition
+     *  from the state is an epsilon transition.
+     */
+    const isIntermediate = (state: State): boolean =>
+      this._transitions.get(state).has(epsilon.rawLetter) &&
+      this._transitions.get(state).size <= 1;
+
+    const stack = [...stateInput];
     while (stack.length > 0) {
       const current = stack.pop();
-      const epsilonTransitions = this._transitions.get(current)?.get("");
-      if (epsilonTransitions == null) continue;
 
-      for (const target of epsilonTransitions) {
-        if (!states.has(target)) {
-          states.add(target);
+      if (!isIntermediate(current)) {
+        states.add(current);
+      }
+
+      if (!this._transitions.get(current).has(epsilon.rawLetter)) continue;
+      for (const target of this._transitions.get(current).get(epsilon.rawLetter)) {
+        if (!seen.has(target)) {
+          seen.add(target);
+
+          if (!isIntermediate(target)) {
+            states.add(target);
+          }
+
           stack.push(target);
         }
       }
@@ -480,9 +540,11 @@ export class NFA extends FiniteAutomata {
   toDFA({ includeDeadState = false }): DFA {
     const states = new Set<State>();
     const alphabet = new Set<Letter>(this.alphabet);
+    /// DFAs are not allowed to have epsilon transitions.
+    alphabet.delete(epsilon);
+
     const transitions: DFATransitions = new DefaultMap(_ => new Map());
     const accepting = new Set<State>();
-
     const stateCounter = new Map<string, number>();
 
     const createLabel = (stateSet: Set<State>): string => {
@@ -519,8 +581,7 @@ export class NFA extends FiniteAutomata {
       return [isNew, state];
     };
 
-    const queue = new Array<Set<State>>();
-    queue.push(new Set([this.start, ...this.transitionFrom(this.start, "")]));
+    const queue = [this.epsilonClosure(new Set([this.start]))];
     const [_, start] = createOrGetState(queue[0]);
     while (queue.length > 0) {
       const current = queue.shift();
@@ -533,7 +594,6 @@ export class NFA extends FiniteAutomata {
             nextStates.add(target);
           }
         }
-
 
         if (!includeDeadState && nextStates.size <= 0) {
           continue;
@@ -555,7 +615,13 @@ export class NFA extends FiniteAutomata {
     return new DFA(states, alphabet, transitions, start, accepting);
   }
 
-  dot({ blankStates = false }): string {
+  dot({
+    blankStates = false,
+    renames = null
+  }: {
+    blankStates?: boolean,
+    renames?: Map<State, string> | null
+  }): string {
     const buffer: string[] = ["digraph G {\n"];
 
     buffer.push("  rankdir=LR;\n");
@@ -565,7 +631,11 @@ export class NFA extends FiniteAutomata {
       buffer.push(`  ${state.id} [shape=`);
       buffer.push(this.accepting.has(state) ? `doublecircle` : `circle`);
       buffer.push(` label="`);
-      if (blankStates) {
+
+      const rename = renames?.get(state);
+      if (rename != null) {
+        buffer.push(rename);
+      } else if (blankStates) {
         buffer.push("");
       } else {
         buffer.push(state.label);
@@ -717,7 +787,13 @@ export class DFA extends FiniteAutomata {
     return new DFA(states, alphabet, transitions, start, accepting);
   }
 
-  dot({ blankStates = false }): string {
+  dot({
+    blankStates = false,
+    renames = null
+  }: {
+    blankStates?: boolean,
+    renames?: Map<State, string> | null
+  }): string {
     const buffer: string[] = ["digraph G {\n"];
 
     buffer.push("  rankdir=LR;\n");
@@ -728,7 +804,13 @@ export class DFA extends FiniteAutomata {
       buffer.push(`shape=`);
       buffer.push(this.accepting.has(state) ? `doublecircle` : `circle`);
       buffer.push(` label="`);
-      if (state.label == "") {
+
+      const rename = renames?.get(state);
+      if (rename != null) {
+        buffer.push(rename);
+      }
+      /// Trap state.
+      else if (state.label == "") {
         buffer.push("∅");
       } else if (blankStates) {
         buffer.push("");
