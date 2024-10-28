@@ -3,11 +3,12 @@ import "../styles.css";
 import { DFA, FiniteAutomata, NFA, State } from "./automata";
 import { debounce } from "./debounce";
 import {
-  dfaSwitch,
+  glushkovDfaSwitch,
   minimalDfaSwitch,
   recognizeOutput,
   regexInput,
   stringInput,
+  thompsonDfaSwitch,
 } from "./elements";
 import { parse } from "./parser";
 import { Id, simulation } from "./simulation";
@@ -22,11 +23,13 @@ import { $, $$, q$ } from "./utility";
 let activeFiniteAutomata: Id = "glushkov-nfa";
 
 let globalGlushkovNfa: NFA | undefined;
-let globalGlushkovRenameMap: Map<State, string> | undefined;
+let globalGlushkovNfaRenameMap: Map<State, string> | undefined;
 let globalThompsonNfa: NFA | undefined;
-let globalThompsonRenameMap: Map<State, string> | undefined;
-let globalDfa: DFA | undefined;
-let globalDfaRenameMap: Map<State, string> | undefined;
+let globalThompsonNfaRenameMap: Map<State, string> | undefined;
+let globalGlushkovDfa: DFA | undefined;
+let globalGlushkovDfaRenameMap: Map<State, string> | undefined;
+let globalThompsonDfa: DFA | undefined;
+let globalThompsonDfaRenameMap: Map<State, string> | undefined;
 let globalMinimalDfa: DFA | undefined;
 let globalMinimalDfaRenameMap: Map<State, string> | undefined;
 
@@ -47,16 +50,23 @@ export const getActiveAutomata = (): [Map<State, string>, FiniteAutomata] | [nul
   switch (activeFiniteAutomata) {
     case "glushkov-nfa":
       activeAutomata = globalGlushkovNfa!;
-      activeRenameMap = globalGlushkovRenameMap!;
+      activeRenameMap = globalGlushkovNfaRenameMap!;
       break;
     case "thompson-nfa":
       activeAutomata = globalThompsonNfa!;
-      activeRenameMap = globalThompsonRenameMap!;
+      activeRenameMap = globalThompsonNfaRenameMap!;
       break;
-    case "dfa":
-      activeAutomata = globalDfa!;
-      activeRenameMap = globalDfaRenameMap!;
+
+    case "glushkov-dfa":
+      activeAutomata = globalGlushkovDfa!;
+      activeRenameMap = globalGlushkovDfaRenameMap!;
       break;
+
+    case "thompson-dfa":
+      activeAutomata = globalThompsonDfa!;
+      activeRenameMap = globalThompsonDfaRenameMap!;
+      break;
+
     case "minimal-dfa":
       activeAutomata = globalMinimalDfa!;
       activeRenameMap = globalMinimalDfaRenameMap!;
@@ -103,7 +113,7 @@ const renderSvgElementForAutomata = (automata: FiniteAutomata)
     renameMap.set(idMap.get(stateId)!, label);
   }
 
-  const svgOutput = viz.renderSVGElement(automata.dot({ renames: renameMap }));
+  const svgOutput = viz.renderSVGElement(automata.dot({ blankStates: false }));
 
   return [renameMap, svgOutput];
 };
@@ -121,7 +131,7 @@ const showSimulationButton = debounce(() => {
   showButton.style.display = "inline";
 }, 100);
 
-const convert = debounce(() => {
+const generateAutomata = debounce(() => {
   const regex = parse(regexInput.value);
   if (regex == null) return;
 
@@ -131,7 +141,7 @@ const convert = debounce(() => {
   const glushkovNfa = NFA.fromGlushkovConstruction(regex);
   const [rename1, svg1] = renderSvgElementForAutomata(glushkovNfa);
   globalGlushkovNfa = glushkovNfa;
-  globalGlushkovRenameMap = rename1;
+  globalGlushkovNfaRenameMap = rename1;
 
   /// We remove the children forcefully.
   document.getElementById("graphviz-output-glushkov-nfa")!.innerHTML = "";
@@ -140,26 +150,34 @@ const convert = debounce(() => {
   const thompsonNfa = NFA.fromThompsonConstruction(regex);
   const [rename2, svg2] = renderSvgElementForAutomata(thompsonNfa);
   globalThompsonNfa = thompsonNfa;
-  globalThompsonRenameMap = rename2;
+  globalThompsonNfaRenameMap = rename2;
   /// We remove the children forcefully.
   document.getElementById("graphviz-output-thompson-nfa")!.innerHTML = "";
   document.getElementById("graphviz-output-thompson-nfa")!.appendChild(svg2);
 
-  const dfa = glushkovNfa.toDFA({ includeDeadState: dfaSwitch.checked });
-  const [rename3, svg3] = renderSvgElementForAutomata(dfa);
-  globalDfa = dfa;
-  globalDfaRenameMap = rename3;
+  const glushkovDfa = glushkovNfa.toDFA({ includeDeadState: glushkovDfaSwitch.checked });
+  const [rename3, svg3] = renderSvgElementForAutomata(glushkovDfa);
+  globalGlushkovDfa = glushkovDfa;
+  globalGlushkovDfaRenameMap = rename3;
 
-  document.getElementById("graphviz-output-dfa")!.innerHTML = "";
-  document.getElementById("graphviz-output-dfa")!.appendChild(svg3);
+  document.getElementById("graphviz-output-glushkov-dfa")!.innerHTML = "";
+  document.getElementById("graphviz-output-glushkov-dfa")!.appendChild(svg3);
+
+  const thompsonDfa = glushkovNfa.toDFA({ includeDeadState: thompsonDfaSwitch.checked });
+  const [rename4, svg4] = renderSvgElementForAutomata(thompsonDfa);
+  globalGlushkovDfa = thompsonDfa;
+  globalGlushkovDfaRenameMap = rename4;
+
+  document.getElementById("graphviz-output-thompson-dfa")!.innerHTML = "";
+  document.getElementById("graphviz-output-thompson-dfa")!.appendChild(svg4);
 
   const minimalDfa = thompsonNfa.toDFA({ includeDeadState: minimalDfaSwitch.checked }).minimized();
-  const [rename4, svg4] = renderSvgElementForAutomata(minimalDfa);
+  const [rename5, svg5] = renderSvgElementForAutomata(minimalDfa);
   globalMinimalDfa = minimalDfa;
-  globalMinimalDfaRenameMap = rename4;
+  globalMinimalDfaRenameMap = rename5;
 
   document.getElementById("graphviz-output-minimal-dfa")!.innerHTML = "";
-  document.getElementById("graphviz-output-minimal-dfa")!.appendChild(svg4);
+  document.getElementById("graphviz-output-minimal-dfa")!.appendChild(svg5);
 }, 250);
 
 const match = debounce(() => {
@@ -203,7 +221,7 @@ const match = debounce(() => {
   showSimulationButton();
 }, 250);
 
-const swapText = debounce((id: "dfa" | "minimal-dfa") => {
+const toggleTrapStateInclusion = debounce((id: "glushkov-dfa" | "thompson-dfa" | "minimal-dfa") => {
   const messageSpan = $(`${id}-switch-indicator`)!;
   const switchElement = $(`${id}-switch`)! as HTMLInputElement;
   const simulateButton = q$(`.simulation-button.create[simulation-id="${id}"]`)!;
@@ -211,19 +229,22 @@ const swapText = debounce((id: "dfa" | "minimal-dfa") => {
   if (switchElement.checked) {
     messageSpan.textContent = "including Trap State";
     simulateButton.removeAttribute("disabled");
+    simulateButton.removeAttribute("title");
   } else {
     messageSpan.textContent = "excluding Trap State";
     simulateButton.setAttribute("disabled", "true");
+    simulateButton.setAttribute("title", "Include the trap state to allow simulation!");
   }
 
-  convert();
+  generateAutomata();
 }, 5);
 
-regexInput.addEventListener("input", convert);
+regexInput.addEventListener("input", generateAutomata);
 regexInput.addEventListener("input", match);
 stringInput.addEventListener("input", match);
-dfaSwitch.addEventListener("change", (_) => swapText("dfa"));
-minimalDfaSwitch.addEventListener("change", (_) => swapText("minimal-dfa"));
+glushkovDfaSwitch.addEventListener("change", _ => toggleTrapStateInclusion("glushkov-dfa"));
+thompsonDfaSwitch.addEventListener("change", _ => toggleTrapStateInclusion("thompson-dfa"));
+minimalDfaSwitch.addEventListener("change", _ => toggleTrapStateInclusion("minimal-dfa"));
 
 const tabButtons = $$("tab-button") as HTMLCollectionOf<HTMLButtonElement>;
 for (const button of tabButtons) {

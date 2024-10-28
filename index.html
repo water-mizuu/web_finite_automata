@@ -26,7 +26,8 @@
       <div class="tab-bar" id="tab-buttons">
         <button class="tablinks tab-button active" tab-id="glushkov-nfa">Glushkov NFA</button>
         <button class="tablinks tab-button" tab-id="thompson-nfa">Thompson NFA</button>
-        <button class="tablinks tab-button" tab-id="dfa">DFA</button>
+        <button class="tablinks tab-button" tab-id="glushkov-dfa">Glushkov DFA</button>
+        <button class="tablinks tab-button" tab-id="thompson-dfa">Thompson DFA</button>
         <button class="tablinks tab-button" tab-id="minimal-dfa">Minimal DFA</button>
       </div>
 
@@ -63,26 +64,57 @@
           </div>
         </div>
 
-        <div tab-id="dfa" class="tab-content">
+        <div tab-id="glushkov-dfa" class="tab-content">
           <h3>
-            DFA
-            <span id="dfa-switch-indicator">excluding Trap State</span>
+            Glushkov DFA
+            <span id="glushkov-dfa-switch-indicator">excluding Trap State</span>
             <label class="switch">
-              <input type="checkbox" id="dfa-switch" />
+              <input type="checkbox" id="glushkov-dfa-switch" />
               <span class="slider round"></span>
             </label>
           </h3>
 
-          <p>This is the DFA generated from the NFA by the subset construction.</p>
-          <div id="graphviz-output-dfa" class="overflowing-box"></div>
+          <p>This is the DFA generated from the Glushkov NFA by the subset construction.</p>
+          <div id="graphviz-output-glushkov-dfa" class="overflowing-box"></div>
 
-          <button class="simulation-button create" simulation-id="dfa" disabled>Simulate</button>
-          <div class="simulation-area" simulation-id="dfa">
+          <button class="simulation-button create" simulation-id="glushkov-dfa" disabled>
+            Simulate
+          </button>
+          <div class="simulation-area" simulation-id="glushkov-dfa">
             <h3>Simulation</h3>
             <h4>Input String: <span id="live-text"></span></h4>
             <div id="live-svg" class="overflowing-box"></div>
-            <button class="simulation-button previous" simulation-id="dfa">&lt;&lt;</button>
-            <button class="simulation-button next" simulation-id="dfa">&gt;&gt;</button>
+            <button class="simulation-button previous" simulation-id="glushkov-dfa">
+              &lt;&lt;
+            </button>
+            <button class="simulation-button next" simulation-id="glushkov-dfa">&gt;&gt;</button>
+          </div>
+        </div>
+
+        <div tab-id="thompson-dfa" class="tab-content">
+          <h3>
+            Thompson DFA
+            <span id="thompson-dfa-switch-indicator">excluding Trap State</span>
+            <label class="switch">
+              <input type="checkbox" id="thompson-dfa-switch" />
+              <span class="slider round"></span>
+            </label>
+          </h3>
+
+          <p>This is the DFA generated from the Thompson NFA by the subset construction.</p>
+          <div id="graphviz-output-thompson-dfa" class="overflowing-box"></div>
+
+          <button class="simulation-button create" simulation-id="thompson-dfa" disabled>
+            Simulate
+          </button>
+          <div class="simulation-area" simulation-id="thompson-dfa">
+            <h3>Simulation</h3>
+            <h4>Input String: <span id="live-text"></span></h4>
+            <div id="live-svg" class="overflowing-box"></div>
+            <button class="simulation-button previous" simulation-id="thompson-dfa">
+              &lt;&lt;
+            </button>
+            <button class="simulation-button next" simulation-id="thompson-dfa">&gt;&gt;</button>
           </div>
         </div>
 

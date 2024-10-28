@@ -3,10 +3,10 @@ import { stringInput } from "./elements";
 import { getActiveAutomata, viz } from "./index";
 import { $, $$, q$ } from "./utility";
 
-export type Id = "glushkov-nfa" | "thompson-nfa" | "dfa" | "minimal-dfa";
+export type Id = "glushkov-nfa" | "thompson-nfa" | "glushkov-dfa" | "thompson-dfa" | "minimal-dfa";
 type NFALocalSim = {
   string: string,
-  sequence: (Set<State> | [State, string, State][])[];
+  sequence: (Set<State> | [State | null, string, State | null][])[];
   step: number;
   stringOutput: HTMLElement;
   svg: SVGSVGElement;
@@ -14,7 +14,7 @@ type NFALocalSim = {
 };
 type DFALocalSim = {
   string: string,
-  sequence: (State | [State, string, State])[];
+  sequence: (State | [State | null, string, State | null])[];
   step: number;
   stringOutput: HTMLElement;
   svg: SVGSVGElement;
@@ -24,7 +24,8 @@ type Simulation = {
   simulations: {
     "glushkov-nfa"?: NFALocalSim,
     "thompson-nfa"?: NFALocalSim,
-    "dfa"?: DFALocalSim,
+    "glushkov-dfa"?: DFALocalSim,
+    "thompson-dfa"?: DFALocalSim,
     "minimal-dfa"?: DFALocalSim,
   },
   nextStep(id: Id): void,
@@ -193,8 +194,7 @@ export const simulation: Simulation = {
       if (sim.step == 0) {
         /// Highlight the start arrow. Then we move to the different start states.
         const arrow = [...sim.svg.querySelectorAll("title")]
-          .filter(s => s.textContent == "n__->0")[0];
-
+          .filter(s => s.textContent!.includes(`n__->`))[0];
         colorParentOf(arrow);
       }
 
@@ -229,8 +229,10 @@ export const simulation: Simulation = {
         }
 
         /// Draw the different arrows.
-        const transitions = sim.sequence[sim.step] as [State, string, State][];
+        const transitions = sim.sequence[sim.step] as [State | null, string, State | null][];
         for (const [from, _, to] of transitions) {
+          if (from == null || to == null) continue;
+
           const allTitles = [...sim.svg.querySelectorAll("title")];
           const fromTitle = allTitles.filter(t => from.id.toString() == t.textContent)[0];
           const arrow = [...sim.svg.querySelectorAll("title")]
@@ -251,11 +253,10 @@ export const simulation: Simulation = {
     } else if (sim.identifier == "DFA") {
       const sim = this.simulations[id] as DFALocalSim;
 
-
       if (sim.step == 0) {
         /// Highlight the start arrow. Then we move to the different start states.
         const arrow = [...sim.svg.querySelectorAll("title")]
-          .filter(s => s.textContent == "n__->0")[0];
+          .filter(s => s.textContent!.includes(`n__->`))[0];
 
         colorParentOf(arrow);
       }
@@ -290,7 +291,9 @@ export const simulation: Simulation = {
         }
 
         /// Draw the different arrows.
-        const [from, _, to] = sim.sequence[sim.step] as [State, string, State];
+        const [from, _, to] = sim.sequence[sim.step] as [State | null, string, State | null];
+        if (from == null || to == null) return;
+
         const allTitles = [...sim.svg.querySelectorAll("title")];
         const fromTitle = allTitles.filter(t => from.id.toString() == t.textContent)[0];
         const arrow = [...sim.svg.querySelectorAll("title")]

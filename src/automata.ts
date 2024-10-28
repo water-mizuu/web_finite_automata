@@ -232,7 +232,6 @@ export class NFA extends FiniteAutomata {
     } else if (regularExpression instanceof Choice) {
       let id = idStart;
       const start = new State(id++, `${id - 1}`);
-      const end = new State(id++, `${id - 1}`);
 
       let leftNfa: NFA;
       let rightNfa: NFA;
@@ -244,6 +243,8 @@ export class NFA extends FiniteAutomata {
       [id, rightNfa] = this._thompsonConstruction(regularExpression.right, id);
       const rightStart = rightNfa.start;
       const rightEnd = [...rightNfa.accepting][0];
+
+      const end = new State(id++, `${id - 1}`);
 
       const states = new Set<State>([
         start,
@@ -361,13 +362,13 @@ export class NFA extends FiniteAutomata {
     } else if (regularExpression instanceof KleeneStar) {
       let id = idStart;
       const start = new State(id++, `${id - 1}`);
-      const end = new State(id++, `${id - 1}`);
 
       let innerNfa;
       [id, innerNfa] = this._thompsonConstruction(regularExpression.expression, id);
       const innerStart = innerNfa.start;
       const innerEnd = [...innerNfa.accepting][0];
 
+      const end = new State(id++, `${id - 1}`);
       const states = new Set([start, end, ...innerNfa.states]);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
       const transitions: NFATransitions = new DefaultMap(
@@ -392,12 +393,13 @@ export class NFA extends FiniteAutomata {
     } else if (regularExpression instanceof KleenePlus) {
       let id = idStart;
       const start = new State(id++, `${id - 1}`);
-      const end = new State(id++, `${id - 1}`);
 
       let innerNfa;
       [id, innerNfa] = this._thompsonConstruction(regularExpression.expression, id);
       const innerStart = innerNfa.start;
       const innerEnd = [...innerNfa.accepting][0];
+
+      const end = new State(id++, `${id - 1}`);
 
       const states = new Set([start, end, ...innerNfa.states]);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
@@ -481,7 +483,7 @@ export class NFA extends FiniteAutomata {
   }
 
   /// This is a mess.
-  *generateSequence(str: string): Generator<Set<State> | [State, string, State][]> {
+  *generateSequence(str: string): Generator<Set<State> | [State | null, string, State | null][]> {
     /// Zeroth: We assume that the states NEVER contain any epsilon intermediates.
 
     const firstTransition: [State, string, State][] = [];
@@ -874,8 +876,8 @@ export class DFA extends FiniteAutomata {
     return new DFA(states, alphabet, transitions, start, accepting);
   }
 
-  *generateSequence(str: string): Generator<State | [State, string, State]> {
-    yield [this.start, "", this.start];
+  *generateSequence(str: string): Generator<State | [State | null, string, State | null]> {
+    yield [null, "", null];
     let state = this.start;
     const tokens = str.split("");
 
