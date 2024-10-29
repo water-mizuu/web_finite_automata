@@ -91,9 +91,7 @@ const renderSvgElementForAutomata = (automata: FiniteAutomata)
     if (state.label == "") continue;
 
     const svgLabel = texts.filter(s => state.label == s.textContent)[0];
-    const query = svgLabel
-      ?.previousElementSibling
-      ?.getAttribute("cx");
+    const query = svgLabel?.previousElementSibling?.getAttribute("cx");
     if (query == null) continue;
 
     const xPosition = parseInt(query);
@@ -135,9 +133,6 @@ const generateAutomata = debounce(() => {
   const regex = parse(regexInput.value);
   if (regex == null) return;
 
-  const activeTab = document.querySelector(".tab-button.active")?.getAttribute("tab-id");
-  console.log(activeTab);
-
   const glushkovNfa = NFA.fromGlushkovConstruction(regex);
   const [rename1, svg1] = renderSvgElementForAutomata(glushkovNfa);
   globalGlushkovNfa = glushkovNfa;
@@ -163,10 +158,10 @@ const generateAutomata = debounce(() => {
   document.getElementById("graphviz-output-glushkov-dfa")!.innerHTML = "";
   document.getElementById("graphviz-output-glushkov-dfa")!.appendChild(svg3);
 
-  const thompsonDfa = glushkovNfa.toDFA({ includeDeadState: thompsonDfaSwitch.checked });
+  const thompsonDfa = thompsonNfa.toDFA({ includeDeadState: thompsonDfaSwitch.checked });
   const [rename4, svg4] = renderSvgElementForAutomata(thompsonDfa);
-  globalGlushkovDfa = thompsonDfa;
-  globalGlushkovDfaRenameMap = rename4;
+  globalThompsonDfa = thompsonDfa;
+  globalThompsonDfaRenameMap = rename4;
 
   document.getElementById("graphviz-output-thompson-dfa")!.innerHTML = "";
   document.getElementById("graphviz-output-thompson-dfa")!.appendChild(svg4);
@@ -186,6 +181,7 @@ const match = debounce(() => {
   if (input.length <= 0) return;
 
   const [renameMap, automata] = getActiveAutomata()!;
+  console.log({ renameMap, automata });
   if (renameMap == null || automata == null) return;
 
   if (automata instanceof NFA) {
@@ -250,6 +246,8 @@ const tabButtons = $$("tab-button") as HTMLCollectionOf<HTMLButtonElement>;
 for (const button of tabButtons) {
   button.addEventListener("click", function (this: HTMLButtonElement) {
     const id = this.getAttribute("tab-id") as Id;
+    activeFiniteAutomata = id;
+
     const tabContents = $$("tab-content") as HTMLCollectionOf<HTMLDivElement>;
     for (const tab of tabContents) {
       tab.style.display = "none";
@@ -263,8 +261,6 @@ for (const button of tabButtons) {
     }
 
     this.classList.add("active");
-    activeFiniteAutomata = id;
-
 
     match();
   }.bind(button));
@@ -288,4 +284,3 @@ for (const button of simulationButtons) {
     }
   }.bind(button));
 }
-console.log(simulationButtons);

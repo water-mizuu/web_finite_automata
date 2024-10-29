@@ -41,7 +41,7 @@ export class Letter extends RegularExpression {
   }
 
   override toString() {
-    return `${this.rawLetter}${this.id == null ? "" : `[${this.id}]`}`;
+    return `${this.rawLetter == "" ? "ε" : this.rawLetter}${this.id == null ? "" : `[${this.id}]`}`;
   }
 }
 

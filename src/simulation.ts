@@ -249,7 +249,6 @@ export const simulation: Simulation = {
           stateTitles.forEach(t => colorParentOf(t, "lime"));
         }
       }
-      console.log(sim);
     } else if (sim.identifier == "DFA") {
       const sim = this.simulations[id] as DFALocalSim;
 
@@ -307,7 +306,6 @@ export const simulation: Simulation = {
           colorParentOf(stateTile, "lime");
         }
       }
-      console.log(sim);
     }
   },
 
