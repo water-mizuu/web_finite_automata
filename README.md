@@ -9,6 +9,8 @@ A web-based application that converts regular expressions into equivalent NFA an
 - [x] Implement the minimization of DFA through Hopcroft's algorithm.
 - [x] Simple input recognition.
 - [ ] Simulation of input recognition.
+  - [ ] Simple implementation
+  - [ ] Rewrite using discriminated unions.
 - [ ] Beautify the website.
 - [ ] Add details
   - [ ] State List
@@ -16,4 +18,6 @@ A web-based application that converts regular expressions into equivalent NFA an
 
 ## ONGOING:
 
-- [ ] Simulation of input recognition.
+- [ ] Rewrite using discriminated unions
+  - [x] NFA
+  - [ ] DFA

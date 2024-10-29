@@ -9,6 +9,7 @@ import {
   Optional,
   RegularExpression,
 } from "./regular_expression";
+import { NFAStep } from "./simulation";
 
 export class State {
   constructor(
@@ -52,7 +53,7 @@ export abstract class FiniteAutomata {
 
   *aggregatedTransitions(): Generator<[State, Letter[], State]> {
     const map = new DefaultMap<State, DefaultMap<State, Letter[]>>(
-      _ => new DefaultMap(_ => [] as Letter[])
+      (_) => new DefaultMap((_) => [] as Letter[])
     );
 
     for (const [source, letter, target] of this.transitions) {
@@ -69,7 +70,7 @@ export abstract class FiniteAutomata {
     }
   }
 
-  abstract dot(_: { blankStates?: boolean, renames?: Map<State, string> }): string;
+  abstract dot(_: { blankStates?: boolean; renames?: Map<State, string> }): string;
 }
 
 type NFATransitions = DefaultMap<State, DefaultMap<string, Set<State>>>;
@@ -170,17 +171,13 @@ export class NFA extends FiniteAutomata {
      *
      * However, since JavaScript does not support immutable tuples, nested maps will do.
      */
-    const transitions: NFATransitions = new DefaultMap(
-      _ => new DefaultMap(_ => new Set())
-    );
+    const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
 
     /**
      * Each letter in P is connected from q[0] by that letter.
      */
     for (const letter of prefixes) {
-      const rightState = [...states].filter(
-        (state) => state.id == letter.id
-      )[0];
+      const rightState = [...states].filter((state) => state.id == letter.id)[0];
 
       transitions.get(start).get(letter.rawLetter).add(rightState);
     }
@@ -221,9 +218,7 @@ export class NFA extends FiniteAutomata {
       const end = new State(id++, `${id - 1}`);
       const states = new Set<State>([start, end]);
       const alphabet = new Set<Letter>([regularExpression]);
-      const transitions: NFATransitions = new DefaultMap(
-        _ => new DefaultMap(_ => new Set())
-      );
+      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
       transitions.get(start).get(regularExpression.rawLetter).add(end);
 
       const accepting = new Set<State>([end]);
@@ -246,20 +241,11 @@ export class NFA extends FiniteAutomata {
 
       const end = new State(id++, `${id - 1}`);
 
-      const states = new Set<State>([
-        start,
-        end,
-        ...leftNfa.states,
-        ...rightNfa.states,
-      ]);
+      const states = new Set<State>([start, end, ...leftNfa.states, ...rightNfa.states]);
 
       // This might produce duplicates.
       // TODO: Fix.
-      const alphabet = new Set<Letter>([
-        epsilon,
-        ...leftNfa.alphabet,
-        ...rightNfa.alphabet,
-      ]);
+      const alphabet = new Set<Letter>([epsilon, ...leftNfa.alphabet, ...rightNfa.alphabet]);
       /// This is for checking.
       const uniques = new Set<string>();
       for (const letter of alphabet) {
@@ -269,7 +255,7 @@ export class NFA extends FiniteAutomata {
         console.warn("Duplicate detected in Thompson Construction!");
       }
 
-      const transitions: NFATransitions = new DefaultMap(_ => new DefaultMap(_ => new Set()));
+      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
       for (const transitionTable of [leftNfa._transitions, rightNfa._transitions]) {
         for (const [source, subMap] of transitionTable.entries()) {
           for (const [symbol, targets] of subMap.entries()) {
@@ -279,9 +265,7 @@ export class NFA extends FiniteAutomata {
       }
 
       /// Add the ε-transitions from q to q[L] and q[R].
-      transitions
-        .get(start)
-        .set(epsilon.rawLetter, new Set([leftStart, rightStart]));
+      transitions.get(start).set(epsilon.rawLetter, new Set([leftStart, rightStart]));
 
       /// Add the ε-transition from f[L] to f.
       transitions.get(leftEnd).get(epsilon.rawLetter).add(end);
@@ -289,10 +273,7 @@ export class NFA extends FiniteAutomata {
       /// Add the ε-transition from f[R] to f.
       transitions.get(rightEnd).get(epsilon.rawLetter).add(end);
 
-      return [
-        id,
-        new NFA(states, alphabet, transitions, start, new Set<State>([end])),
-      ];
+      return [id, new NFA(states, alphabet, transitions, start, new Set<State>([end]))];
     } else if (regularExpression instanceof Concatenation) {
       let id = idStart;
 
@@ -307,13 +288,10 @@ export class NFA extends FiniteAutomata {
       const rightStart = rightNfa.start;
       const rightEnd = [...rightNfa.accepting][0];
 
-      const statesArray = [...leftNfa.states, ...rightNfa.states].filter(s => s != leftEnd);
+      const statesArray = [...leftNfa.states, ...rightNfa.states].filter((s) => s != leftEnd);
       const states = new Set<State>(statesArray);
-      const alphabet = new Set<Letter>([
-        ...leftNfa.alphabet,
-        ...rightNfa.alphabet,
-      ]);
-      const transitions: NFATransitions = new DefaultMap(_ => new DefaultMap(_ => new Set()));
+      const alphabet = new Set<Letter>([...leftNfa.alphabet, ...rightNfa.alphabet]);
+      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
       for (const transitionTable of [leftNfa._transitions, rightNfa._transitions]) {
         for (const [source, subMap] of transitionTable.entries()) {
           for (const [symbol, targets] of subMap.entries()) {
@@ -331,10 +309,7 @@ export class NFA extends FiniteAutomata {
         }
       }
 
-      return [
-        id,
-        new NFA(states, alphabet, transitions, leftStart, new Set([rightEnd])),
-      ];
+      return [id, new NFA(states, alphabet, transitions, leftStart, new Set([rightEnd]))];
     } else if (regularExpression instanceof Optional) {
       let id = idStart;
       let innerNfa: NFA;
@@ -345,9 +320,7 @@ export class NFA extends FiniteAutomata {
 
       const states = new Set(innerNfa.states);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
-      const transitions: NFATransitions = new DefaultMap(
-        _ => new DefaultMap(_ => new Set())
-      );
+      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
       for (const [source, subMap] of innerNfa._transitions.entries()) {
         for (const [symbol, targets] of subMap.entries()) {
           transitions.get(source).set(symbol, new Set(targets));
@@ -355,10 +328,7 @@ export class NFA extends FiniteAutomata {
       }
       transitions.get(innerStart).get(epsilon.rawLetter).add(innerEnd);
 
-      return [
-        id,
-        new NFA(states, alphabet, transitions, innerStart, new Set([innerEnd])),
-      ];
+      return [id, new NFA(states, alphabet, transitions, innerStart, new Set([innerEnd]))];
     } else if (regularExpression instanceof KleeneStar) {
       let id = idStart;
       const start = new State(id++, `${id - 1}`);
@@ -371,9 +341,7 @@ export class NFA extends FiniteAutomata {
       const end = new State(id++, `${id - 1}`);
       const states = new Set([start, end, ...innerNfa.states]);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
-      const transitions: NFATransitions = new DefaultMap(
-        _ => new DefaultMap(_ => new Set())
-      );
+      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
       for (const [source, subMap] of innerNfa._transitions.entries()) {
         for (const [symbol, targets] of subMap.entries()) {
           transitions.get(source).set(symbol, new Set(targets));
@@ -386,10 +354,7 @@ export class NFA extends FiniteAutomata {
       /// Add epsilon transition from f to q.
       transitions.get(innerEnd).get(epsilon.rawLetter).add(innerStart).add(end);
 
-      return [
-        id,
-        new NFA(states, alphabet, transitions, start, new Set([end])),
-      ];
+      return [id, new NFA(states, alphabet, transitions, start, new Set([end]))];
     } else if (regularExpression instanceof KleenePlus) {
       let id = idStart;
       const start = new State(id++, `${id - 1}`);
@@ -403,9 +368,7 @@ export class NFA extends FiniteAutomata {
 
       const states = new Set([start, end, ...innerNfa.states]);
       const alphabet = new Set([...innerNfa.alphabet, epsilon]);
-      const transitions: NFATransitions = new DefaultMap(
-        _ => new DefaultMap(_ => new Set())
-      );
+      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
       for (const [source, subMap] of innerNfa._transitions.entries()) {
         for (const [symbol, targets] of subMap.entries()) {
           transitions.get(source).set(symbol, new Set(targets));
@@ -418,10 +381,7 @@ export class NFA extends FiniteAutomata {
       /// Add epsilon transition from f to q.
       transitions.get(innerEnd).get(epsilon.rawLetter).add(innerStart).add(end);
 
-      return [
-        id,
-        new NFA(states, alphabet, transitions, start, new Set([end])),
-      ];
+      return [id, new NFA(states, alphabet, transitions, start, new Set([end]))];
     } else {
       throw new Error(`Unidentified runtime type ${regularExpression}.`);
     }
@@ -431,9 +391,7 @@ export class NFA extends FiniteAutomata {
     return function* (this: NFA) {
       for (const [state, subMap] of this._transitions.entries()) {
         for (const [rawLetter, targets] of subMap.entries()) {
-          const letter = [...this.alphabet].filter(
-            (v) => v.rawLetter == rawLetter
-          )[0];
+          const letter = [...this.alphabet].filter((v) => v.rawLetter == rawLetter)[0];
 
           for (const target of targets) {
             yield [state, letter, target];
@@ -448,9 +406,7 @@ export class NFA extends FiniteAutomata {
     const tokens = str.split("");
 
     for (const token of tokens) {
-      const newStates = new Set(
-        [...states].flatMap((s) => [...this.transitionFrom(s, token)])
-      );
+      const newStates = new Set([...states].flatMap((s) => [...this.transitionFrom(s, token)]));
 
       states.clear();
       for (const s of newStates) {
@@ -466,9 +422,7 @@ export class NFA extends FiniteAutomata {
     const tokens = str.split("");
 
     for (const token of tokens) {
-      const newStates = new Set(
-        [...states].flatMap((s) => [...this.transitionFrom(s, token)])
-      );
+      const newStates = new Set([...states].flatMap((s) => [...this.transitionFrom(s, token)]));
 
       states.clear();
       for (const s of newStates) {
@@ -476,82 +430,119 @@ export class NFA extends FiniteAutomata {
       }
     }
 
-    return [
-      new Set<State>(states),
-      [...states].filter((i) => this.accepting.has(i)).length > 0,
-    ];
+    return [new Set<State>(states), [...states].filter((i) => this.accepting.has(i)).length > 0];
   }
 
   /// This is a mess.
-  *generateSequence(str: string): Generator<Set<State> | [State | null, string, State | null][]> {
-    /// Zeroth: We assume that the states NEVER contain any epsilon intermediates.
+  generateSimulationSteps(str: string): NFAStep[] {
+    const output: NFAStep[] = [];
 
-    const firstTransition: [State, string, State][] = [];
-    const states = new Set([this.start]);
-    /// We resolve the epsilon transitions, breadth-first.
-    const seen = new Set<State>(states);
-    const stack = [...states];
-    while (stack.length > 0) {
-      const latest = stack.pop()!;
-      const hasEpsilonTransitions = this._transitions.get(latest).has(epsilon.rawLetter);
-      if (!hasEpsilonTransitions) continue;
+    /**
+     * [1]: The first step will always be showing the resolution of the initial states.
+     */
 
-      const epsilonTransitions = this._transitions.get(latest).get(epsilon.rawLetter)!;
-      for (const target of epsilonTransitions) {
-        firstTransition.push([latest, epsilon.rawLetter, target]);
+    const states = this.epsilonClosure(new Set([this.start]));
 
-        if (!seen.has(target)) {
-          seen.add(target);
-          stack.push(target);
-        }
-      }
-    }
+    output.push({
+      resultStates: states,
+      transitions: [...this.#epsilonClosureSteps(this.start)],
+      identifier: "initial",
+    });
 
-    yield firstTransition;
-    states.clear();
-    this.epsilonClosure(new Set([this.start])).forEach(states.add.bind(states));
-    const tokens = str.split("");
+    /**
+     * [2]: We then yield the states resolved from [1].
+     */
+    output.push({ scannedIndex: -1, states: new Set(states), identifier: "state" });
 
-    yield new Set(states);
-    for (const token of tokens) {
+    /**
+     * For each transition,
+     *  [n]    : we show the transition,
+     *  [n + 1]: and we show the resulting states.
+     */
+    for (let i = 0; i < str.length; ++i) {
+      const token = str[i];
       const transitions: [State, string, State][] = [];
       const newStates = new Set<State>();
 
       for (const source of states) {
-        const localNewStates = this._transitions.get(source).get(token)!;
-
-        for (const target of localNewStates) {
+        for (const target of this._transitions.get(source).get(token)!) {
           newStates.add(target);
           transitions.push([source, token, target]);
         }
       }
 
       /// We resolve the epsilon transitions, breadth-first.
-      const seen = new Set<State>(newStates);
-      const stack = [...newStates];
-      while (stack.length > 0) {
-        const latest = stack.pop()!;
-        const epsilonTransitions = this._transitions.get(latest).get(epsilon.rawLetter);
-        for (const target of epsilonTransitions!) {
-          transitions.push([latest, epsilon.rawLetter, target]);
-
-          if (!seen.has(target)) {
-            seen.add(target);
-            stack.push(target);
-          }
-        }
+      for (const transition of this.#epsilonClosureSteps(newStates)) {
+        transitions.push(transition);
       }
 
-      yield transitions;
+      const actualNewStates = new Set(
+        [...states].flatMap((s) => [...this.transitionFrom(s, token)])
+      );
 
-      const actualNewStates = new Set([...states].flatMap((s) => [...this.transitionFrom(s, token)]));
+      output.push({
+        scannedIndex: i,
+        transitions: transitions,
+        resultStates: new Set(actualNewStates),
+        identifier: "transition",
+      });
 
       states.clear();
       for (const s of actualNewStates) {
         states.add(s);
       }
 
-      yield new Set(states);
+      output.push({ scannedIndex: i, states: actualNewStates, identifier: "state" });
+    }
+
+    /**
+     * [f]: We show the result of the automata.
+     */
+
+    if ([...states].some((s) => this.accepting.has(s))) {
+      output.push({
+        finalStates: new Set(states), //
+        status: "recognized",
+        identifier: "complete",
+      });
+    } else {
+      output.push({
+        finalStates: new Set(states),
+        status: "not-recognized",
+        identifier: "complete",
+      });
+    }
+
+    return output;
+  }
+
+  *#epsilonClosureSteps(initial: State | Set<State>): Generator<[State, string, State]> {
+    const seen = new Set<State>();
+    const stack: State[] = [];
+
+    if (initial instanceof State) {
+      seen.add(initial);
+      stack.push(initial);
+    } else {
+      for (const state of initial) {
+        seen.add(state);
+        stack.unshift(state);
+      }
+    }
+
+    while (stack.length > 0) {
+      const latest = stack.pop()!;
+
+      const subMap = this._transitions.get(latest);
+      if (!subMap.has(epsilon.rawLetter)) continue;
+      for (const target of subMap.get(epsilon.rawLetter)!) {
+        yield [latest, epsilon.rawLetter, target];
+
+        if (!seen.has(target)) {
+          seen.add(target);
+          stack.push(target);
+        }
+      }
     }
   }
 
@@ -584,8 +575,7 @@ export class NFA extends FiniteAutomata {
      *  from the state is an epsilon transition.
      */
     const isIntermediate = (state: State): boolean =>
-      this._transitions.get(state).has(epsilon.rawLetter) &&
-      this._transitions.get(state).size <= 1;
+      this._transitions.get(state).has(epsilon.rawLetter) && this._transitions.get(state).size <= 1;
 
     const stack = [...stateInput];
     while (stack.length > 0) {
@@ -618,7 +608,7 @@ export class NFA extends FiniteAutomata {
     /// DFAs are not allowed to have epsilon transitions.
     alphabet.delete(epsilon);
 
-    const transitions: DFATransitions = new DefaultMap(_ => new Map());
+    const transitions: DFATransitions = new DefaultMap((_) => new Map());
     const accepting = new Set<State>();
     const stateCounter = new Map<string, number>();
 
@@ -692,10 +682,10 @@ export class NFA extends FiniteAutomata {
 
   dot({
     blankStates = false,
-    renames = null
+    renames = null,
   }: {
-    blankStates?: boolean,
-    renames?: Map<State, string> | null
+    blankStates?: boolean;
+    renames?: Map<State, string> | null;
   }): string {
     const buffer: string[] = ["digraph G {\n"];
 
@@ -722,9 +712,7 @@ export class NFA extends FiniteAutomata {
     for (const [source, letters, target] of this.aggregatedTransitions()) {
       const transitionLabel = letters.map((v) => v.toString()).join(", ");
 
-      buffer.push(
-        `  ${source.id} -> ${target.id} [label="${transitionLabel}"]\n`
-      );
+      buffer.push(`  ${source.id} -> ${target.id} [label="${transitionLabel}"]\n`);
     }
 
     buffer.push("}\n");
@@ -748,9 +736,7 @@ export class DFA extends FiniteAutomata {
     return function* (this: DFA) {
       for (const [state, subMap] of this._transitions.entries()) {
         for (const [rawLetter, targets] of subMap.entries()) {
-          const letter = [...this.alphabet].filter(
-            (v) => v.rawLetter == rawLetter
-          )[0];
+          const letter = [...this.alphabet].filter((v) => v.rawLetter == rawLetter)[0];
 
           yield [state, letter, targets];
         }
@@ -779,16 +765,11 @@ export class DFA extends FiniteAutomata {
       state = this._transitions.get(state).get(token)!;
     }
 
-    return [
-      state,
-      this.accepting.has(state),
-    ];
+    return [state, this.accepting.has(state)];
   }
 
   minimized() {
-    const nf = new Set<State>(
-      [...this.states].filter((v) => !this.accepting.has(v))
-    );
+    const nf = new Set<State>([...this.states].filter((v) => !this.accepting.has(v)));
     const p = new Set<Set<State>>([this.accepting, nf]);
     const w = new Set<Set<State>>([this.accepting, nf]);
 
@@ -800,11 +781,7 @@ export class DFA extends FiniteAutomata {
         /// let X be the set of states for which a transition on c leads to a state in A
         const x = new Set<State>();
         for (const state of this.states) {
-          if (
-            [...a].some(
-              (v) => this._transitions.get(state)?.get(c.rawLetter) == v
-            )
-          ) {
+          if ([...a].some((v) => this._transitions.get(state)?.get(c.rawLetter) == v)) {
             x.add(state);
           }
         }
@@ -856,7 +833,7 @@ export class DFA extends FiniteAutomata {
 
     const states = new Set(equivalentStates.values());
     const alphabet = this.alphabet;
-    const transitions: DFATransitions = new DefaultMap(_ => new Map());
+    const transitions: DFATransitions = new DefaultMap((_) => new Map());
     for (const [origin, subMap] of this._transitions.entries()) {
       for (const [letter, target] of subMap.entries()) {
         const equivalentOrigin = equivalentStates.get(origin)!;
@@ -893,10 +870,10 @@ export class DFA extends FiniteAutomata {
 
   dot({
     blankStates = false,
-    renames = null
+    renames = null,
   }: {
-    blankStates?: boolean,
-    renames?: Map<State, string> | null
+    blankStates?: boolean;
+    renames?: Map<State, string> | null;
   }): string {
     const buffer: string[] = ["digraph G {\n"];
 
@@ -927,9 +904,7 @@ export class DFA extends FiniteAutomata {
     for (const [source, letters, target] of this.aggregatedTransitions()) {
       const transitionLabel = letters.map((v) => v.toString()).join(", ");
 
-      buffer.push(
-        `  ${source.id} -> ${target.id} [label="${transitionLabel}"]\n`
-      );
+      buffer.push(`  ${source.id} -> ${target.id} [label="${transitionLabel}"]\n`);
     }
 
     buffer.push("}\n");

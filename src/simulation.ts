@@ -4,36 +4,59 @@ import { getActiveAutomata, viz } from "./index";
 import { $, $$, q$ } from "./utility";
 
 export type Id = "glushkov-nfa" | "thompson-nfa" | "glushkov-dfa" | "thompson-dfa" | "minimal-dfa";
+
+export type NFAStep =
+  | {
+    resultStates: Set<State>;
+    transitions: [State, string, State][];
+    identifier: "initial";
+  }
+  | {
+    scannedIndex: number;
+    states: Set<State>;
+    identifier: "state";
+  }
+  | {
+    scannedIndex: number;
+    resultStates: Set<State>;
+    transitions: [State, string, State][];
+    identifier: "transition";
+  }
+  | {
+    finalStates: Set<State>;
+    status: "recognized" | "not-recognized";
+    identifier: "complete";
+  };
 type NFALocalSim = {
-  string: string,
-  sequence: (Set<State> | [State | null, string, State | null][])[];
+  string: string;
+  sequence: NFAStep[];
   step: number;
-  stringOutput: HTMLElement;
+  renameMap: Map<State, String>;
   svg: SVGSVGElement;
-  identifier: "NFA",
+  identifier: "NFA";
 };
 type DFALocalSim = {
-  string: string,
+  string: string;
   sequence: (State | [State | null, string, State | null])[];
   step: number;
   stringOutput: HTMLElement;
   svg: SVGSVGElement;
-  identifier: "DFA",
+  identifier: "DFA";
 };
 type Simulation = {
   simulations: {
-    "glushkov-nfa"?: NFALocalSim,
-    "thompson-nfa"?: NFALocalSim,
-    "glushkov-dfa"?: DFALocalSim,
-    "thompson-dfa"?: DFALocalSim,
-    "minimal-dfa"?: DFALocalSim,
-  },
-  nextStep(id: Id): void,
-  previousStep(id: Id): void,
-  create(id: Id): void,
-  destroy(id: Id): void,
-  draw(id: Id): void,
-  lockIfNecessary(id: Id): void,
+    "glushkov-nfa"?: NFALocalSim;
+    "thompson-nfa"?: NFALocalSim;
+    "glushkov-dfa"?: DFALocalSim;
+    "thompson-dfa"?: DFALocalSim;
+    "minimal-dfa"?: DFALocalSim;
+  };
+  nextStep(id: Id): void;
+  previousStep(id: Id): void;
+  create(id: Id): void;
+  destroy(id: Id): void;
+  draw(id: Id): void;
+  lockIfNecessary(id: Id): void;
 };
 
 export const simulation: Simulation = {
@@ -96,10 +119,10 @@ export const simulation: Simulation = {
     if (id == "glushkov-nfa" || id == "thompson-nfa") {
       this.simulations[id] = {
         string: input,
-        sequence: [...(automata as NFA).generateSequence(input)],
+        sequence: [...(automata as NFA).generateSimulationSteps(input)],
         step: -1,
         svg: svg,
-        stringOutput: textOutput,
+        renameMap: renameMap,
         identifier: "NFA",
       };
       this.lockIfNecessary(id);
@@ -129,7 +152,6 @@ export const simulation: Simulation = {
     for (const link of $$("tablinks")) {
       link.removeAttribute("disabled");
     }
-
 
     const textOutput = area.querySelector(`#live-text`) as HTMLDivElement;
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement;
@@ -161,11 +183,23 @@ export const simulation: Simulation = {
 
     if (sim.step < 0) return;
 
-    for (let i = 0; i < sim.string.length; ++i) {
-      const span = sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement;
 
-      span.style.color = "black";
+    const spanOfIndex = (index: number): HTMLSpanElement =>
+      document.querySelector(
+        `.simulation-area[simulation-id=${id}] #live-text [idx="${index}"]`
+      ) as HTMLSpanElement;
+
+    for (let i = 0; i < sim.string.length; ++i) {
+      spanOfIndex(i).style.color = "black";
     }
+
+    const setActionMessage = (str: string) => {
+      const query = `.simulation-area[simulation-id=${id}] #action-text`;
+      const element = q$(query);
+      if (element == null) return;
+
+      element.textContent = str;
+    };
 
     const colorParentOf = (target: HTMLTitleElement | null, color?: string) => {
       color ??= "red";
@@ -190,63 +224,113 @@ export const simulation: Simulation = {
 
     if (sim.identifier == "NFA") {
       const sim = this.simulations[id] as NFALocalSim;
+      const chosen = sim.sequence[sim.step];
 
-      if (sim.step == 0) {
-        /// Highlight the start arrow. Then we move to the different start states.
-        const arrow = [...sim.svg.querySelectorAll("title")]
-          .filter(s => s.textContent!.includes(`n__->`))[0];
-        colorParentOf(arrow);
-      }
-
-      if (sim.step % 2 != 0) {
-        /// We are now pointing at (active) states.
-
-        /// Color the letters.
-        for (let i = 0; i < sim.step / 2 - 1; ++i) {
-          (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "gray";
-        }
-
-        /// Color the states.
-        const states = [...sim.sequence[sim.step] as Set<State>];
-        const stateTitles = [...sim.svg.querySelectorAll("title")]
-          .filter(t => states.some(s => s.id.toString() === t.textContent));
-
-        stateTitles.forEach(t => colorParentOf(t, "lime"));
-      } else if (sim.step % 2 == 0) {
-        /// We are looking at transitions.
-
-        /// Color the letters.
-        const half = sim.step / 2;
-        const spans: HTMLSpanElement[] = [];
-        for (let i = 0; i < half; ++i) {
-          const span = sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement;
-
-          span.style.color = "grey";
-          spans.push(span);
-        }
-        if (spans.length > 0) {
-          spans.at(-1)!.style.color = "red";
-        }
-
-        /// Draw the different arrows.
-        const transitions = sim.sequence[sim.step] as [State | null, string, State | null][];
-        for (const [from, _, to] of transitions) {
-          if (from == null || to == null) continue;
-
-          const allTitles = [...sim.svg.querySelectorAll("title")];
-          const fromTitle = allTitles.filter(t => from.id.toString() == t.textContent)[0];
-          const arrow = [...sim.svg.querySelectorAll("title")]
-            .filter(s => s.textContent == `${from.id}->${to.id}`)[0];
-
-          [fromTitle, arrow].forEach(t => colorParentOf(t));
-        }
-
+      const drawPreviousStates = () => {
         if (sim.step - 1 > 0) {
-          const states = [...sim.sequence[sim.step - 1] as Set<State>];
-          const stateTitles = [...sim.svg.querySelectorAll("title")]
-            .filter(t => states.some(s => s.id.toString() === t.textContent));
+          let lastStatesIndex = sim.step - 1;
+          while (lastStatesIndex >= 0) {
+            if (sim.sequence[lastStatesIndex].identifier === "state") {
+              break;
+            }
+            lastStatesIndex--;
+          }
 
-          stateTitles.forEach(t => colorParentOf(t, "lime"));
+          const lastStates = sim.sequence[lastStatesIndex];
+          if (lastStates.identifier === "state") {
+            const states = [...lastStates.states];
+            const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
+              states.some((s) => s.id.toString() === t.textContent)
+            );
+
+            stateTitles.forEach((t) => colorParentOf(t, "lime"));
+          }
+        }
+      };
+
+      switch (chosen.identifier) {
+        case "initial": {
+          /// Set the status mesage.
+          setActionMessage(`Resolving initial states`);
+
+          const arrow = [...sim.svg.querySelectorAll("title")].filter((s) =>
+            s.textContent!.includes(`n__->`)
+          )[0];
+
+          if (arrow !== undefined) {
+            colorParentOf(arrow);
+          }
+
+          /// No break.
+        }
+        case "transition": {
+          /// Set the status mesage.
+          if (chosen.identifier == "transition") {
+            const character = chosen.transitions[0][1];
+
+            setActionMessage(`At index ${chosen.scannedIndex}, reading character '${character}'`);
+
+            /// Color the letters.
+
+            for (let i = 0; i < chosen.scannedIndex; ++i) {
+              spanOfIndex(i).style.color = "grey";
+            }
+            spanOfIndex(chosen.scannedIndex).style.color = "red";
+          }
+
+          /// Draw the different arrows.
+          for (const [from, _, to] of chosen.transitions) {
+            if (from == null || to == null) continue;
+
+            const allTitles = [...sim.svg.querySelectorAll("title")];
+            const fromTitle = allTitles.filter((t) => from.id.toString() == t.textContent)[0];
+            const arrow = [...sim.svg.querySelectorAll("title")].filter(
+              (s) => s.textContent == `${from.id}->${to.id}`
+            )[0];
+
+            colorParentOf(arrow, "red");
+            colorParentOf(fromTitle, "red");
+          }
+
+          /// Draw the previous states as green.
+          drawPreviousStates();
+          break;
+        }
+        case "state": {
+          const displayStates = [...chosen.states].map((s) => sim.renameMap.get(s)).join(", ");
+          const latter =
+            chosen.states.size == 1 //
+              ? ` is ${displayStates}`
+              : `s are { ${displayStates} }`;
+          setActionMessage(`The state${latter}`);
+
+          /// Color the letters.
+          for (let i = 0; i <= chosen.scannedIndex; ++i) {
+            spanOfIndex(i).style.color = "grey";
+          }
+
+          /// Color the states.
+          const states = [...chosen.states];
+          const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
+            states.some((s) => s.id.toString() === t.textContent)
+          );
+
+          stateTitles.forEach((t) => colorParentOf(t, "lime"));
+          break;
+        }
+        case "complete": {
+          const isRecognized = chosen.status == "recognized";
+
+          for (let i = 0; i < sim.string.length; ++i) {
+            spanOfIndex(i).style.color = isRecognized ? "green" : "red";
+          }
+          const states = [...chosen.finalStates].map((s) => sim.renameMap.get(s)).join(", ");
+          const latter = chosen.finalStates.size == 1 ? ` is ${states}` : `s are { ${states} }`;
+
+          const verdict = isRecognized ? "recognized" : "not recognized";
+          setActionMessage(`The resulting state${latter}, so it is ${verdict}.`);
+          drawPreviousStates();
+          break;
         }
       }
     } else if (sim.identifier == "DFA") {
@@ -254,8 +338,9 @@ export const simulation: Simulation = {
 
       if (sim.step == 0) {
         /// Highlight the start arrow. Then we move to the different start states.
-        const arrow = [...sim.svg.querySelectorAll("title")]
-          .filter(s => s.textContent!.includes(`n__->`))[0];
+        const arrow = [...sim.svg.querySelectorAll("title")].filter((s) =>
+          s.textContent!.includes(`n__->`)
+        )[0];
 
         colorParentOf(arrow);
       }
@@ -270,8 +355,9 @@ export const simulation: Simulation = {
 
         /// Color the states.
         const state = sim.sequence[sim.step] as State;
-        const stateTile = [...sim.svg.querySelectorAll("title")]
-          .filter(t => state.id.toString() === t.textContent)[0];
+        const stateTile = [...sim.svg.querySelectorAll("title")].filter(
+          (t) => state.id.toString() === t.textContent
+        )[0];
         colorParentOf(stateTile, "lime");
       } else if (sim.step % 2 == 0) {
         /// We are looking at transitions.
@@ -294,15 +380,17 @@ export const simulation: Simulation = {
         if (from == null || to == null) return;
 
         const allTitles = [...sim.svg.querySelectorAll("title")];
-        const fromTitle = allTitles.filter(t => from.id.toString() == t.textContent)[0];
-        const arrow = [...sim.svg.querySelectorAll("title")]
-          .filter(s => s.textContent == `${from.id}->${to.id}`)[0];
-        [fromTitle, arrow].forEach(t => colorParentOf(t));
+        const fromTitle = allTitles.filter((t) => from.id.toString() == t.textContent)[0];
+        const arrow = [...sim.svg.querySelectorAll("title")].filter(
+          (s) => s.textContent == `${from.id}->${to.id}`
+        )[0];
+        [fromTitle, arrow].forEach((t) => colorParentOf(t));
 
         if (sim.step - 1 > 0) {
           const state = sim.sequence[sim.step - 1] as State;
-          const stateTile = [...sim.svg.querySelectorAll("title")]
-            .filter(t => state.id.toString() === t.textContent)[0];
+          const stateTile = [...sim.svg.querySelectorAll("title")].filter(
+            (t) => state.id.toString() === t.textContent
+          )[0];
           colorParentOf(stateTile, "lime");
         }
       }
@@ -310,7 +398,7 @@ export const simulation: Simulation = {
   },
 
   /**
-   * 
+   *
    * @param this The [Simulation] singleton object.
    * @param id The [id] used in identifying which area is to be simulated.
    */
@@ -337,5 +425,5 @@ export const simulation: Simulation = {
     if (sim.step + 1 >= sim.sequence.length) {
       next.setAttribute("disabled", "true");
     }
-  }
+  },
 };
