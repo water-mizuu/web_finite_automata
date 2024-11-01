@@ -8,7 +8,7 @@ export type Id = "glushkov-nfa" | "thompson-nfa" | "glushkov-dfa" | "thompson-df
 export type NFAStep =
   | {
     resultStates: Set<State>;
-    transitions: [State, string, State][];
+    transitions: [State, State][];
     identifier: "initial";
   }
   | {
@@ -19,14 +19,36 @@ export type NFAStep =
   | {
     scannedIndex: number;
     resultStates: Set<State>;
-    transitions: [State, string, State][];
+    transitions: [State, State][];
     identifier: "transition";
   }
   | {
     finalStates: Set<State>;
     status: "recognized" | "not-recognized";
     identifier: "complete";
+  }
+  | {
+    finalStates: null;
+    status: "immature-abort";
+    identifier: "complete";
   };
+export type DFAStep =
+  | { startState: State; identifier: "initial" }
+  | { scannedIndex: number; state: State; identifier: "state" }
+  | {
+    scannedIndex: number;
+    resultState: State;
+    transition: [State, State];
+    identifier: "transition";
+  }
+  | {
+    scannedIndex: number;
+    resultState: null,
+    transition: null,
+    identifier: "transition",
+  }
+  | { finalState: State, status: "recognized" | "not-recognized", identifier: "complete" }
+  | { finalState: null, status: "immature-abort", identifier: "complete" };
 type NFALocalSim = {
   string: string;
   sequence: NFAStep[];
@@ -37,9 +59,9 @@ type NFALocalSim = {
 };
 type DFALocalSim = {
   string: string;
-  sequence: (State | [State | null, string, State | null])[];
+  sequence: DFAStep[];
   step: number;
-  stringOutput: HTMLElement;
+  renameMap: Map<State, String>;
   svg: SVGSVGElement;
   identifier: "DFA";
 };
@@ -58,6 +80,41 @@ type Simulation = {
   draw(id: Id): void;
   lockIfNecessary(id: Id): void;
 };
+
+const spanOfIndex = (id: Id, index: number): HTMLSpanElement =>
+  document.querySelector(
+    `.simulation-area[simulation-id=${id}] #live-text [idx="${index}"]`
+  ) as HTMLSpanElement;
+
+const setActionMessage = (id: Id, str: string) => {
+  const query = `.simulation-area[simulation-id=${id}] #action-text`;
+  const element = q$(query);
+  if (element == null) return;
+
+  element.textContent = str;
+};
+
+const colorParentOf = (target: HTMLTitleElement | null, color?: string) => {
+  color ??= "red";
+
+  if (target == null) return;
+  const parent = target.parentElement;
+  if (parent == null) return;
+
+  for (const element of parent.querySelectorAll(`[stroke]`)) {
+    if (element.getAttribute("stroke") == "none") continue;
+
+    element.setAttribute("stroke", color);
+    element.classList.add("modified-stroke");
+  }
+  for (const element of parent.querySelectorAll(`[fill]`)) {
+    if (element.getAttribute("fill") == "none") continue;
+
+    element.setAttribute("fill", color);
+    element.classList.add("modified-fill");
+  }
+};
+
 
 export const simulation: Simulation = {
   simulations: {},
@@ -129,10 +186,10 @@ export const simulation: Simulation = {
     } else {
       this.simulations[id] = {
         string: input,
-        sequence: [...(automata as DFA).generateSequence(input)],
+        sequence: [...(automata as DFA).generateSimulationSteps(input)],
         step: -1,
         svg: svg,
-        stringOutput: textOutput,
+        renameMap: renameMap,
         identifier: "DFA",
       };
       this.lockIfNecessary(id);
@@ -153,12 +210,14 @@ export const simulation: Simulation = {
       link.removeAttribute("disabled");
     }
 
-    const textOutput = area.querySelector(`#live-text`) as HTMLDivElement;
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement;
-    if (textOutput == null || svgOutput == null) return;
+    const textOutput = area.querySelector(`#live-text`) as HTMLSpanElement;
+    const actionOutput = area.querySelector(`#action-text`) as HTMLSpanElement;
+    if (textOutput == null || svgOutput == null || actionOutput == null) return;
 
     textOutput.innerHTML = "";
     svgOutput.innerHTML = "";
+    actionOutput.innerHTML = "";
 
     area.style.display = "none";
 
@@ -183,75 +242,40 @@ export const simulation: Simulation = {
 
     if (sim.step < 0) return;
 
-
-    const spanOfIndex = (index: number): HTMLSpanElement =>
-      document.querySelector(
-        `.simulation-area[simulation-id=${id}] #live-text [idx="${index}"]`
-      ) as HTMLSpanElement;
-
     for (let i = 0; i < sim.string.length; ++i) {
-      spanOfIndex(i).style.color = "black";
+      spanOfIndex(id, i).style.color = "black";
     }
-
-    const setActionMessage = (str: string) => {
-      const query = `.simulation-area[simulation-id=${id}] #action-text`;
-      const element = q$(query);
-      if (element == null) return;
-
-      element.textContent = str;
-    };
-
-    const colorParentOf = (target: HTMLTitleElement | null, color?: string) => {
-      color ??= "red";
-
-      if (target == null) return;
-      const parent = target.parentElement;
-      if (parent == null) return;
-
-      for (const element of parent.querySelectorAll(`[stroke]`)) {
-        if (element.getAttribute("stroke") == "none") continue;
-
-        element.setAttribute("stroke", color);
-        element.classList.add("modified-stroke");
-      }
-      for (const element of parent.querySelectorAll(`[fill]`)) {
-        if (element.getAttribute("fill") == "none") continue;
-
-        element.setAttribute("fill", color);
-        element.classList.add("modified-fill");
-      }
-    };
 
     if (sim.identifier == "NFA") {
       const sim = this.simulations[id] as NFALocalSim;
       const chosen = sim.sequence[sim.step];
 
       const drawPreviousStates = () => {
-        if (sim.step - 1 > 0) {
-          let lastStatesIndex = sim.step - 1;
-          while (lastStatesIndex >= 0) {
-            if (sim.sequence[lastStatesIndex].identifier === "state") {
-              break;
-            }
-            lastStatesIndex--;
-          }
+        if (sim.step <= 1) return;
 
-          const lastStates = sim.sequence[lastStatesIndex];
-          if (lastStates.identifier === "state") {
-            const states = [...lastStates.states];
-            const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
-              states.some((s) => s.id.toString() === t.textContent)
-            );
-
-            stateTitles.forEach((t) => colorParentOf(t, "lime"));
+        let lastStatesIndex = sim.step - 1;
+        while (lastStatesIndex >= 0) {
+          if (sim.sequence[lastStatesIndex].identifier === "state") {
+            break;
           }
+          lastStatesIndex--;
+        }
+
+        const lastStates = sim.sequence[lastStatesIndex];
+        if (lastStates.identifier === "state") {
+          const states = [...lastStates.states];
+          const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
+            states.some((s) => s.id.toString() === t.textContent)
+          );
+
+          stateTitles.forEach((t) => colorParentOf(t, "lime"));
         }
       };
 
       switch (chosen.identifier) {
         case "initial": {
           /// Set the status mesage.
-          setActionMessage(`Resolving initial states`);
+          setActionMessage(id, `Resolving initial states`);
 
           const arrow = [...sim.svg.querySelectorAll("title")].filter((s) =>
             s.textContent!.includes(`n__->`)
@@ -266,20 +290,20 @@ export const simulation: Simulation = {
         case "transition": {
           /// Set the status mesage.
           if (chosen.identifier == "transition") {
-            const character = chosen.transitions[0][1];
+            const character = sim.string[chosen.scannedIndex];
 
-            setActionMessage(`At index ${chosen.scannedIndex}, reading character '${character}'`);
+            setActionMessage(id, `At index ${chosen.scannedIndex}, reading character '${character}'`);
 
             /// Color the letters.
 
             for (let i = 0; i < chosen.scannedIndex; ++i) {
-              spanOfIndex(i).style.color = "grey";
+              spanOfIndex(id, i).style.color = "grey";
             }
-            spanOfIndex(chosen.scannedIndex).style.color = "red";
+            spanOfIndex(id, chosen.scannedIndex).style.color = "red";
           }
 
           /// Draw the different arrows.
-          for (const [from, _, to] of chosen.transitions) {
+          for (const [from, to] of chosen.transitions) {
             if (from == null || to == null) continue;
 
             const allTitles = [...sim.svg.querySelectorAll("title")];
@@ -302,11 +326,11 @@ export const simulation: Simulation = {
             chosen.states.size == 1 //
               ? ` is ${displayStates}`
               : `s are { ${displayStates} }`;
-          setActionMessage(`The state${latter}`);
+          setActionMessage(id, `The state${latter}`);
 
           /// Color the letters.
           for (let i = 0; i <= chosen.scannedIndex; ++i) {
-            spanOfIndex(i).style.color = "grey";
+            spanOfIndex(id, i).style.color = "grey";
           }
 
           /// Color the states.
@@ -319,79 +343,142 @@ export const simulation: Simulation = {
           break;
         }
         case "complete": {
-          const isRecognized = chosen.status == "recognized";
+          if (chosen.status === "immature-abort") {
+            for (let i = 0; i < sim.string.length; ++i) {
+              spanOfIndex(id, i).style.color = "red";
+            }
 
-          for (let i = 0; i < sim.string.length; ++i) {
-            spanOfIndex(i).style.color = isRecognized ? "green" : "red";
+            const message = `The tracked states did not resolve a state, so the string is not accepted.`;
+
+            setActionMessage(id, message);
+          } else {
+            const isRecognized = chosen.status == "recognized";
+
+            for (let i = 0; i < sim.string.length; ++i) {
+              spanOfIndex(id, i).style.color = isRecognized ? "green" : "red";
+            }
+            const states = [...chosen.finalStates].map((s) => sim.renameMap.get(s)).join(", ");
+            const latter = chosen.finalStates.size == 1 ? ` is ${states}` : `s are { ${states} }`;
+
+            const verdict = isRecognized ? "recognized" : "not recognized";
+            setActionMessage(id, `The resulting state${latter}, so it is ${verdict}.`);
+            drawPreviousStates();
           }
-          const states = [...chosen.finalStates].map((s) => sim.renameMap.get(s)).join(", ");
-          const latter = chosen.finalStates.size == 1 ? ` is ${states}` : `s are { ${states} }`;
-
-          const verdict = isRecognized ? "recognized" : "not recognized";
-          setActionMessage(`The resulting state${latter}, so it is ${verdict}.`);
-          drawPreviousStates();
           break;
         }
       }
     } else if (sim.identifier == "DFA") {
       const sim = this.simulations[id] as DFALocalSim;
+      const chosen = sim.sequence[sim.step];
 
-      if (sim.step == 0) {
-        /// Highlight the start arrow. Then we move to the different start states.
-        const arrow = [...sim.svg.querySelectorAll("title")].filter((s) =>
-          s.textContent!.includes(`n__->`)
-        )[0];
+      const drawPreviousState = () => {
+        if (sim.step <= 1) return;
 
-        colorParentOf(arrow);
-      }
-
-      if (sim.step % 2 != 0) {
-        /// We are now pointing at (active) states.
-
-        /// Color the letters.
-        for (let i = 0; i < sim.step / 2 - 1; ++i) {
-          (sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement).style.color = "gray";
+        let lastStatesIndex = sim.step - 1;
+        while (lastStatesIndex >= 0) {
+          if (sim.sequence[lastStatesIndex].identifier === "state") {
+            break;
+          }
+          lastStatesIndex--;
         }
 
-        /// Color the states.
-        const state = sim.sequence[sim.step] as State;
-        const stateTile = [...sim.svg.querySelectorAll("title")].filter(
-          (t) => state.id.toString() === t.textContent
-        )[0];
-        colorParentOf(stateTile, "lime");
-      } else if (sim.step % 2 == 0) {
-        /// We are looking at transitions.
+        const lastStates = sim.sequence[lastStatesIndex];
+        if (lastStates.identifier === "state") {
+          const lastState = lastStates.state;
+          const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
+            lastState.id.toString() === t.textContent
+          );
 
-        /// Color the letters.
-        const half = sim.step / 2;
-        const spans: HTMLSpanElement[] = [];
-        for (let i = 0; i < half; ++i) {
-          const span = sim.stringOutput.querySelector(`[idx="${i}"]`) as HTMLSpanElement;
-
-          span.style.color = "grey";
-          spans.push(span);
+          stateTitles.forEach((t) => colorParentOf(t, "lime"));
         }
-        if (spans.length > 0) {
-          spans.at(-1)!.style.color = "red";
-        }
+      };
 
-        /// Draw the different arrows.
-        const [from, _, to] = sim.sequence[sim.step] as [State | null, string, State | null];
-        if (from == null || to == null) return;
+      switch (chosen.identifier) {
+        case "initial": {
+          /// Set the status mesage.
+          setActionMessage(id, `Resolving initial states`);
 
-        const allTitles = [...sim.svg.querySelectorAll("title")];
-        const fromTitle = allTitles.filter((t) => from.id.toString() == t.textContent)[0];
-        const arrow = [...sim.svg.querySelectorAll("title")].filter(
-          (s) => s.textContent == `${from.id}->${to.id}`
-        )[0];
-        [fromTitle, arrow].forEach((t) => colorParentOf(t));
-
-        if (sim.step - 1 > 0) {
-          const state = sim.sequence[sim.step - 1] as State;
-          const stateTile = [...sim.svg.querySelectorAll("title")].filter(
-            (t) => state.id.toString() === t.textContent
+          const arrow = [...sim.svg.querySelectorAll("title")].filter((s) =>
+            s.textContent!.includes(`n__->`)
           )[0];
-          colorParentOf(stateTile, "lime");
+
+          if (arrow !== undefined) {
+            colorParentOf(arrow);
+          }
+
+          break;
+        }
+        case "transition": {
+          /// Set the status mesage.
+          const character = sim.string[chosen.scannedIndex];
+
+          setActionMessage(id, `At index ${chosen.scannedIndex}, reading character '${character}'`);
+
+          /// Color the letters.
+
+          for (let i = 0; i < chosen.scannedIndex; ++i) {
+            spanOfIndex(id, i).style.color = "grey";
+          }
+          spanOfIndex(id, chosen.scannedIndex).style.color = "red";
+
+
+          /// Draw the different arrows.
+          if (chosen.transition != null) {
+            const [from, to] = chosen.transition;
+            const allTitles = [...sim.svg.querySelectorAll("title")];
+            const fromTitle = allTitles.filter((t) => from.id.toString() == t.textContent)[0];
+            const arrow = [...sim.svg.querySelectorAll("title")].filter(
+              (s) => s.textContent == `${from.id}->${to.id}`
+            )[0];
+
+            colorParentOf(arrow, "red");
+            colorParentOf(fromTitle, "red");
+
+            /// Draw the previous states as green.
+          }
+          drawPreviousState();
+          break;
+        }
+        case "state": {
+          const displayState = sim.renameMap.get(chosen.state) ?? "the trap state";
+          setActionMessage(id, `The state is ${displayState}`);
+
+          /// Color the letters.
+          for (let i = 0; i <= chosen.scannedIndex; ++i) {
+            spanOfIndex(id, i).style.color = "grey";
+          }
+
+          /// Color the states.
+          const state = chosen.state;
+          const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
+            t.textContent == state.id.toString()
+          );
+
+          stateTitles.forEach((t) => colorParentOf(t, "lime"));
+          break;
+        }
+        case "complete": {
+          if (chosen.status === "immature-abort") {
+            for (let i = 0; i < sim.string.length; ++i) {
+              spanOfIndex(id, i).style.color = "red";
+            }
+
+            const message = `The tracked state did not resolve a state, meaning that it went to a trap state, so the string is not recognized.`;
+
+            setActionMessage(id, message);
+          } else {
+            const isRecognized = chosen.status == "recognized";
+
+            for (let i = 0; i < sim.string.length; ++i) {
+              spanOfIndex(id, i).style.color = isRecognized ? "green" : "red";
+            }
+
+            const state = sim.renameMap.get(chosen.finalState) ?? "the trap state";
+            const verdict = isRecognized ? "recognized" : "not recognized";
+            setActionMessage(id, `The resulting state is ${state}, so it is ${verdict}.`);
+            drawPreviousState();
+          }
+          break;
         }
       }
     }

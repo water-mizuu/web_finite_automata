@@ -9,13 +9,17 @@ import {
   Optional,
   RegularExpression,
 } from "./regular_expression";
-import { NFAStep } from "./simulation";
+import { DFAStep, NFAStep } from "./simulation";
 
 export class State {
   constructor(
     public id: number,
-    public label: string
+    public label: string,
   ) { }
+
+  get isTrapState(): boolean {
+    return this.label == "";
+  }
 }
 
 export abstract class FiniteAutomata {
@@ -433,7 +437,6 @@ export class NFA extends FiniteAutomata {
     return [new Set<State>(states), [...states].filter((i) => this.accepting.has(i)).length > 0];
   }
 
-  /// This is a mess.
   generateSimulationSteps(str: string): NFAStep[] {
     const output: NFAStep[] = [];
 
@@ -461,13 +464,13 @@ export class NFA extends FiniteAutomata {
      */
     for (let i = 0; i < str.length; ++i) {
       const token = str[i];
-      const transitions: [State, string, State][] = [];
+      const transitions: [State, State][] = [];
       const newStates = new Set<State>();
 
       for (const source of states) {
         for (const target of this._transitions.get(source).get(token)!) {
           newStates.add(target);
-          transitions.push([source, token, target]);
+          transitions.push([source, target]);
         }
       }
 
@@ -487,10 +490,13 @@ export class NFA extends FiniteAutomata {
         identifier: "transition",
       });
 
+
       states.clear();
       for (const s of actualNewStates) {
         states.add(s);
       }
+
+      if (actualNewStates.size <= 0) break;
 
       output.push({ scannedIndex: i, states: actualNewStates, identifier: "state" });
     }
@@ -499,7 +505,13 @@ export class NFA extends FiniteAutomata {
      * [f]: We show the result of the automata.
      */
 
-    if ([...states].some((s) => this.accepting.has(s))) {
+    if (states.size <= 0) {
+      output.push({
+        finalStates: null,
+        status: "immature-abort",
+        identifier: "complete",
+      });
+    } else if ([...states].some((s) => this.accepting.has(s))) {
       output.push({
         finalStates: new Set(states), //
         status: "recognized",
@@ -516,7 +528,7 @@ export class NFA extends FiniteAutomata {
     return output;
   }
 
-  *#epsilonClosureSteps(initial: State | Set<State>): Generator<[State, string, State]> {
+  *#epsilonClosureSteps(initial: State | Set<State>): Generator<[State, State]> {
     const seen = new Set<State>();
     const stack: State[] = [];
 
@@ -536,7 +548,7 @@ export class NFA extends FiniteAutomata {
       const subMap = this._transitions.get(latest);
       if (!subMap.has(epsilon.rawLetter)) continue;
       for (const target of subMap.get(epsilon.rawLetter)!) {
-        yield [latest, epsilon.rawLetter, target];
+        yield [latest, target];
 
         if (!seen.has(target)) {
           seen.add(target);
@@ -853,19 +865,79 @@ export class DFA extends FiniteAutomata {
     return new DFA(states, alphabet, transitions, start, accepting);
   }
 
-  *generateSequence(str: string): Generator<State | [State | null, string, State | null]> {
-    yield [null, "", null];
-    let state = this.start;
-    const tokens = str.split("");
+  generateSimulationSteps(str: string): DFAStep[] {
+    const output: DFAStep[] = [];
 
-    yield state;
-    for (const token of tokens) {
-      const next = this._transitions.get(state).get(token)!;
-      yield [state, token, next];
+    /**
+     * [1]: The first step will always be showing the resolution of the initial states.
+     */
 
-      state = next;
-      yield state;
+    let state: State | undefined = this.start;
+    output.push({
+      startState: state,
+      identifier: "initial",
+    });
+
+    /**
+     * [2]: We then yield the states resolved from [1].
+     */
+    output.push({ scannedIndex: -1, state, identifier: "state" });
+
+    /**
+     * For each transition,
+     *  [n]    : we show the transition,
+     *  [n + 1]: and we show the resulting states.
+     */
+    for (let i = 0; i < str.length; ++i) {
+      const token = str[i];
+
+      const previousState = state;
+      state = this._transitions.get(state).get(token);
+      if (state == null) {
+        output.push({
+          scannedIndex: i,
+          transition: null,
+          resultState: null,
+          identifier: "transition",
+        });
+        break;
+      }
+
+      output.push({
+        scannedIndex: i,
+        transition: [previousState, state],
+        resultState: state,
+        identifier: "transition",
+      });
+
+      output.push({ scannedIndex: i, state, identifier: "state" });
     }
+
+    /**
+     * [f]: We show the result of the automata.
+     */
+
+    if (state == null) {
+      output.push({
+        finalState: null,
+        status: "immature-abort",
+        identifier: "complete",
+      })
+    } else if (this.accepting.has(state)) {
+      output.push({
+        finalState: state,
+        status: "recognized",
+        identifier: "complete",
+      });
+    } else {
+      output.push({
+        finalState: state,
+        status: "not-recognized",
+        identifier: "complete",
+      });
+    }
+
+    return output;
   }
 
   dot({
@@ -891,7 +963,7 @@ export class DFA extends FiniteAutomata {
         buffer.push(rename);
       }
       /// Trap state.
-      else if (state.label == "") {
+      else if (state.isTrapState) {
         buffer.push("∅");
       } else if (blankStates) {
         buffer.push("");

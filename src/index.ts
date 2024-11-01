@@ -220,16 +220,11 @@ const match = debounce(() => {
 const toggleTrapStateInclusion = debounce((id: "glushkov-dfa" | "thompson-dfa" | "minimal-dfa") => {
   const messageSpan = $(`${id}-switch-indicator`)!;
   const switchElement = $(`${id}-switch`)! as HTMLInputElement;
-  const simulateButton = q$(`.simulation-button.create[simulation-id="${id}"]`)!;
 
   if (switchElement.checked) {
     messageSpan.textContent = "including Trap State";
-    simulateButton.removeAttribute("disabled");
-    simulateButton.removeAttribute("title");
   } else {
     messageSpan.textContent = "excluding Trap State";
-    simulateButton.setAttribute("disabled", "true");
-    simulateButton.setAttribute("title", "Include the trap state to allow simulation!");
   }
 
   generateAutomata();
