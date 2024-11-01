@@ -22,10 +22,18 @@ body {
   max-width: 100%;
 }
 
+.user-inputs {
+  padding: 1em 0em;
+}
+
 .text-input {
   padding: 4px;
   display: block;
   width: 100%;
+}
+
+.overflowing-box {
+  overflow-x: scroll;
 }
 
 /* Style the tab */
@@ -62,11 +70,11 @@ body {
   padding: 6px 12px;
   border: 1px solid #ccc;
   border-top: none;
-  overflow-x: scroll;
 }
 
 .tab-content.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 
 .document-padding {
@@ -83,11 +91,35 @@ body {
   color:rgb(57, 143, 23);
 }
 
-.simulation-button.create { display: none; }
 .simulation-area {
   display: none;
-  padding-top: 12px;
-  padding-bottom: 12px;
+}
+
+.simulation-area.visible {
+  display: flex;
+  flex-direction: column;
+}
+
+th, td {
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+.transitions-holder {
+  padding-top: 0.25em;
+  display: flex;
+}
+
+.transitions {
+  padding-left: 0.25em;
+}
+
+.transitions table {
+  border: 1px solid;
+}
+
+.live-text, .action-text {
+  font-weight: normal;
 }
 
 /* SWITCH BUTTON THING */

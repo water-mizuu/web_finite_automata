@@ -83,11 +83,11 @@ type Simulation = {
 
 const spanOfIndex = (id: Id, index: number): HTMLSpanElement =>
   document.querySelector(
-    `.simulation-area[simulation-id=${id}] #live-text [idx="${index}"]`
+    `.simulation-area[simulation-id=${id}] .live-text [idx="${index}"]`
   ) as HTMLSpanElement;
 
 const setActionMessage = (id: Id, str: string) => {
-  const query = `.simulation-area[simulation-id=${id}] #action-text`;
+  const query = `.simulation-area[simulation-id=${id}] .action-text`;
   const element = q$(query);
   if (element == null) return;
 
@@ -133,13 +133,11 @@ export const simulation: Simulation = {
   create(this: Simulation, id: Id): void {
     const btn = q$(`.simulation-button[simulation-id="${id}"]`) as HTMLElement | null;
     const area = q$(`.simulation-area[simulation-id="${id}"]`) as HTMLElement | null;
-    /// Oh wow, this pattern does get tiring. I want monads.
     if (btn == null || area == null) return;
 
     const svgSource = $(`graphviz-output-${id}`)?.children?.[0];
     if (svgSource == null) return;
 
-    btn.textContent = "Stop Simulation";
     btn.classList.remove("create");
     btn.classList.add("stop");
 
@@ -150,7 +148,7 @@ export const simulation: Simulation = {
       link.setAttribute("disabled", "true");
     }
 
-    const textOutput = area.querySelector(`#live-text`) as HTMLDivElement | null;
+    const textOutput = area.querySelector(`.live-text`) as HTMLDivElement | null;
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement | null;
     if (textOutput == null || svgOutput == null) return;
 
@@ -171,7 +169,8 @@ export const simulation: Simulation = {
     const svg = viz.renderSVGElement(automata.dot({ renames: renameMap }));
     svgOutput.appendChild(svg);
 
-    area.style.display = "block";
+    area.classList.add("visible");
+    // area.style.display = "block";
 
     if (id == "glushkov-nfa" || id == "thompson-nfa") {
       this.simulations[id] = {
@@ -196,10 +195,10 @@ export const simulation: Simulation = {
     }
   },
   destroy(this: Simulation, id: Id): void {
-    const btn = q$(`.simulation-button[simulation-id="${id}"]`) as HTMLElement;
-    const area = q$(`.simulation-area[simulation-id="${id}"]`) as HTMLElement;
+    const btn = q$(`.simulation-button[simulation-id="${id}"]`) as HTMLElement | null;
+    const area = q$(`.simulation-area[simulation-id="${id}"]`) as HTMLElement | null;
+    if (btn == null || area == null) return;
 
-    btn.textContent = "Simulate";
     btn.classList.remove("stop");
     btn.classList.add("create");
 
@@ -211,15 +210,15 @@ export const simulation: Simulation = {
     }
 
     const svgOutput = area.querySelector(`#live-svg`) as HTMLDivElement;
-    const textOutput = area.querySelector(`#live-text`) as HTMLSpanElement;
-    const actionOutput = area.querySelector(`#action-text`) as HTMLSpanElement;
+    const textOutput = area.querySelector(`.live-text`) as HTMLSpanElement;
+    const actionOutput = area.querySelector(`.action-text`) as HTMLSpanElement;
     if (textOutput == null || svgOutput == null || actionOutput == null) return;
 
     textOutput.innerHTML = "";
     svgOutput.innerHTML = "";
     actionOutput.innerHTML = "";
 
-    area.style.display = "none";
+    area.classList.remove("visible");
 
     delete this.simulations[id];
   },
@@ -239,6 +238,7 @@ export const simulation: Simulation = {
       colored.setAttribute("fill", "black");
       colored.classList.remove("modified-fill");
     }
+    setActionMessage(id, "");
 
     if (sim.step < 0) return;
 
