@@ -702,6 +702,7 @@ export class NFA extends FiniteAutomata {
     const buffer: string[] = ["digraph G {\n"];
 
     buffer.push("  rankdir=LR;\n");
+    buffer.push("  graph[nodesep=.2,bgcolor=none];\n");
 
     buffer.push(`  n__ [label="" shape=none width=.0];\n`);
     for (const state of this.states) {
@@ -950,6 +951,7 @@ export class DFA extends FiniteAutomata {
     const buffer: string[] = ["digraph G {\n"];
 
     buffer.push("  rankdir=LR;\n");
+    buffer.push("  graph[nodesep=.2,bgcolor=none];\n");
 
     buffer.push(`  n__ [label="" shape=none width=.0];\n`);
     for (const state of this.states) {
@@ -961,6 +963,8 @@ export class DFA extends FiniteAutomata {
       const rename = renames?.get(state);
       if (rename != null) {
         buffer.push(rename);
+        buffer.push('" xlabel="');
+        buffer.push(state.label);
       }
       /// Trap state.
       else if (state.isTrapState) {
