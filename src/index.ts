@@ -77,7 +77,7 @@ const renderSvgElementForAutomata = (
   const texts = [...svgKey.querySelectorAll(".node text")];
   const renameMap = new Map<State, string>();
   for (const state of automata.states) {
-    if (state.label == "") continue;
+    if (state.isTrapState) continue;
 
     const svgLabel = texts.filter((s) => state.label == s.textContent)[0];
     const query = svgLabel?.previousElementSibling?.getAttribute("cx");
@@ -100,7 +100,7 @@ const renderSvgElementForAutomata = (
     renameMap.set(idMap.get(stateId)!, label);
   }
 
-  const trapState = [...automata.states].filter(s => s.label == "")[0];
+  const trapState = [...automata.states].filter(s => s.isTrapState)[0];
   if (trapState != null) {
     renameMap.set(trapState, "∅");
   }

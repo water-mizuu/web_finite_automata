@@ -46,7 +46,7 @@ const generateTable: GenerateTable = (parent, renameMap, automata) => {
 
   if (automata instanceof NFA) {
     for (const state of states) {
-      if (state.label == "") continue;
+      if (state.isTrapState) continue;
 
       const row = document.createElement("tr");
       const stateElement = document.createElement("th");
@@ -68,7 +68,7 @@ const generateTable: GenerateTable = (parent, renameMap, automata) => {
     }
   } else if (automata instanceof DFA) {
     for (const state of states) {
-      if (state.label == "") continue;
+      if (state.isTrapState) continue;
 
       const row = document.createElement("tr");
       const stateElement = document.createElement("th");

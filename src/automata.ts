@@ -13,7 +13,7 @@ export class State {
   ) { }
 
   get isTrapState(): boolean {
-    return this.label == "";
+    return this.label == "" || this.label == "{  }";
   }
 }
 
