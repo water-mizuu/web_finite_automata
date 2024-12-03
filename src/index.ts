@@ -8,8 +8,7 @@ import {
   minimalDfaSwitch,
   recognizeOutput,
   regexInput,
-  stringInput,
-  thompsonDfaSwitch,
+  stringInput
 } from "./elements";
 import { parse } from "./parser";
 import { Id, simulation } from "./simulation";
@@ -23,12 +22,8 @@ let activeFiniteAutomata: Id | null = "glushkov-nfa";
 
 let globalGlushkovNfa: NFA | undefined;
 let globalGlushkovNfaRenameMap: Map<State, string> | undefined;
-let globalThompsonNfa: NFA | undefined;
-let globalThompsonNfaRenameMap: Map<State, string> | undefined;
 let globalGlushkovDfa: DFA | undefined;
 let globalGlushkovDfaRenameMap: Map<State, string> | undefined;
-let globalThompsonDfa: DFA | undefined;
-let globalThompsonDfaRenameMap: Map<State, string> | undefined;
 let globalMinimalDfa: DFA | undefined;
 let globalMinimalDfaRenameMap: Map<State, string> | undefined;
 
@@ -52,19 +47,10 @@ export const getAutomataForId = (
       activeAutomata = globalGlushkovNfa!;
       activeRenameMap = globalGlushkovNfaRenameMap!;
       break;
-    case "thompson-nfa":
-      activeAutomata = globalThompsonNfa!;
-      activeRenameMap = globalThompsonNfaRenameMap!;
-      break;
 
     case "glushkov-dfa":
       activeAutomata = globalGlushkovDfa!;
       activeRenameMap = globalGlushkovDfaRenameMap!;
-      break;
-
-    case "thompson-dfa":
-      activeAutomata = globalThompsonDfa!;
-      activeRenameMap = globalThompsonDfaRenameMap!;
       break;
 
     case "minimal-dfa":
@@ -137,14 +123,6 @@ const generateAutomata = debounce(() => {
   document.getElementById("graphviz-output-glushkov-nfa")!.innerHTML = "";
   document.getElementById("graphviz-output-glushkov-nfa")!.appendChild(svg1);
 
-  const thompsonNfa = NFA.fromThompsonConstruction(regex);
-  const [rename2, svg2] = renderSvgElementForAutomata(thompsonNfa);
-  globalThompsonNfa = thompsonNfa;
-  globalThompsonNfaRenameMap = rename2;
-  /// We remove the children forcefully.
-  document.getElementById("graphviz-output-thompson-nfa")!.innerHTML = "";
-  document.getElementById("graphviz-output-thompson-nfa")!.appendChild(svg2);
-
   const glushkovDfa = glushkovNfa.toDFA({ includeDeadState: glushkovDfaSwitch.checked });
   const [rename3, svg3] = renderSvgElementForAutomata(glushkovDfa);
   globalGlushkovDfa = glushkovDfa;
@@ -153,15 +131,7 @@ const generateAutomata = debounce(() => {
   document.getElementById("graphviz-output-glushkov-dfa")!.innerHTML = "";
   document.getElementById("graphviz-output-glushkov-dfa")!.appendChild(svg3);
 
-  const thompsonDfa = thompsonNfa.toDFA({ includeDeadState: thompsonDfaSwitch.checked });
-  const [rename4, svg4] = renderSvgElementForAutomata(thompsonDfa);
-  globalThompsonDfa = thompsonDfa;
-  globalThompsonDfaRenameMap = rename4;
-
-  document.getElementById("graphviz-output-thompson-dfa")!.innerHTML = "";
-  document.getElementById("graphviz-output-thompson-dfa")!.appendChild(svg4);
-
-  const minimalDfa = thompsonNfa.toDFA({ includeDeadState: minimalDfaSwitch.checked }).minimized();
+  const minimalDfa = glushkovNfa.toDFA({ includeDeadState: minimalDfaSwitch.checked }).minimized();
   const [rename5, svg5] = renderSvgElementForAutomata(minimalDfa);
   globalMinimalDfa = minimalDfa;
   globalMinimalDfaRenameMap = rename5;
@@ -176,7 +146,6 @@ const match = debounce(() => {
   if (input.length <= 0) return;
 
   const [renameMap, automata] = getActiveAutomata()!;
-  console.log({ renameMap, automata });
   if (renameMap == null || automata == null) return;
 
   if (automata instanceof NFA) {
@@ -210,7 +179,7 @@ const match = debounce(() => {
   }
 }, 250);
 
-const toggleTrapStateInclusion = debounce((id: "glushkov-dfa" | "thompson-dfa" | "minimal-dfa") => {
+const toggleTrapStateInclusion = debounce((id: "glushkov-dfa" | "minimal-dfa") => {
   const messageSpan = $(`${id}-switch-indicator`)!;
   const switchElement = $(`${id}-switch`)! as HTMLInputElement;
 
@@ -227,15 +196,12 @@ regexInput.addEventListener("input", generateAutomata);
 regexInput.addEventListener("input", match);
 stringInput.addEventListener("input", match);
 glushkovDfaSwitch.addEventListener("change", (_) => toggleTrapStateInclusion("glushkov-dfa"));
-thompsonDfaSwitch.addEventListener("change", (_) => toggleTrapStateInclusion("thompson-dfa"));
 minimalDfaSwitch.addEventListener("change", (_) => toggleTrapStateInclusion("minimal-dfa"));
 
 const isId = (str: string): str is Id => {
   return (
     str == "glushkov-nfa" ||
-    str == "thompson-nfa" ||
     str == "glushkov-dfa" ||
-    str == "thompson-dfa" ||
     str == "minimal-dfa"
   );
 };

@@ -97,6 +97,46 @@ const generateTable: GenerateTable = (parent, renameMap, automata) => {
   holder?.appendChild(table);
 };
 
+const generateRenames = (id: Id, renameMap: Map<State, string>, automata: FiniteAutomata) => {
+  const holder = q$(`.tab-content[tab-group-id="${id}"] .renames`)!;
+  holder.textContent = "";
+
+  const table = document.createElement("table");
+
+  const header = document.createElement("tr");
+  const left = document.createElement("th");
+  const right = document.createElement("th");
+
+  header.appendChild(left);
+  header.appendChild(right);
+  if (id == "glushkov-nfa") {
+    left.textContent = "Glushkov NFA State";
+    right.textContent = "Alias";
+  } else if (id == "glushkov-dfa") {
+    left.textContent = "Glushkov DFA State";
+    right.textContent = "Alias";
+  } else if (id == "minimal-dfa") {
+    left.textContent = "Glushkov DFA State";
+    right.textContent = "Alias";
+  }
+  table.appendChild(header);
+
+  for (const [state, name] of renameMap) {
+    const row = document.createElement("tr");
+    const left = document.createElement("td");
+    left.textContent = state.label;
+    row.appendChild(left);
+
+    const right = document.createElement("td");
+    right.textContent = name;
+    row.appendChild(right);
+
+    table.appendChild(row);
+  }
+
+  holder.appendChild(table);
+}
+
 export const definition = {
   create(id: Id) {
     const [renameMap, automata] = getAutomataForId(id);
@@ -130,6 +170,8 @@ export const definition = {
     const acceptingElement = parent.querySelector(".final-states")!;
     const accepting = automata.accepting;
     acceptingElement.textContent = [...accepting].map((s) => renameMap.get(s)).join(", ");
+
+    generateRenames(id, renameMap, automata);
   },
   destroy(id: Id) {
     const [renameMap, automata] = getAutomataForId(id);

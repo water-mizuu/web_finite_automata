@@ -3,7 +3,7 @@ import { stringInput } from "./elements";
 import { getActiveAutomata, viz } from "./index";
 import { $, $$, q$ } from "./utility";
 
-export type Id = "glushkov-nfa" | "thompson-nfa" | "glushkov-dfa" | "thompson-dfa" | "minimal-dfa";
+export type Id = "glushkov-nfa" | "glushkov-dfa" | "minimal-dfa";
 
 export type NFAStep =
   | {
@@ -31,7 +31,9 @@ export type NFAStep =
     finalStates: null;
     status: "immature-abort";
     identifier: "complete";
-  };
+  }
+  | { scannedIndex: number; identifier: "error" }
+  ;
 export type DFAStep =
   | { startState: State; identifier: "initial" }
   | { scannedIndex: number; state: State; identifier: "state" }
@@ -43,12 +45,14 @@ export type DFAStep =
   }
   | {
     scannedIndex: number;
-    resultState: null,
-    transition: null,
-    identifier: "transition",
+    resultState: null;
+    transition: null;
+    identifier: "transition";
   }
-  | { finalState: State, status: "recognized" | "not-recognized", identifier: "complete" }
-  | { finalState: null, status: "immature-abort", identifier: "complete" };
+  | { finalState: State; status: "recognized" | "not-recognized"; identifier: "complete" }
+  | { finalState: null; status: "immature-abort"; identifier: "complete" }
+  | { scannedIndex: number; identifier: "error" }
+  ;
 type NFALocalSim = {
   string: string;
   sequence: NFAStep[];
@@ -68,9 +72,7 @@ type DFALocalSim = {
 type Simulation = {
   simulations: {
     "glushkov-nfa"?: NFALocalSim;
-    "thompson-nfa"?: NFALocalSim;
     "glushkov-dfa"?: DFALocalSim;
-    "thompson-dfa"?: DFALocalSim;
     "minimal-dfa"?: DFALocalSim;
   };
   nextStep(id: Id): void;
@@ -114,7 +116,6 @@ const colorParentOf = (target: HTMLTitleElement | null, color?: string) => {
     element.classList.add("modified-fill");
   }
 };
-
 
 export const simulation: Simulation = {
   simulations: {},
@@ -172,7 +173,7 @@ export const simulation: Simulation = {
     area.classList.add("visible");
     // area.style.display = "block";
 
-    if (id == "glushkov-nfa" || id == "thompson-nfa") {
+    if (id == "glushkov-nfa") {
       this.simulations[id] = {
         string: input,
         sequence: [...(automata as NFA).generateSimulationSteps(input)],
@@ -292,7 +293,10 @@ export const simulation: Simulation = {
           if (chosen.identifier == "transition") {
             const character = sim.string[chosen.scannedIndex];
 
-            setActionMessage(id, `At index ${chosen.scannedIndex}, reading character '${character}'`);
+            setActionMessage(
+              id,
+              `At index ${chosen.scannedIndex}, reading character '${character}'`
+            );
 
             /// Color the letters.
 
@@ -366,6 +370,18 @@ export const simulation: Simulation = {
           }
           break;
         }
+        case "error": {
+          const character = sim.string[chosen.scannedIndex];
+          setActionMessage(
+            id,
+            `At index ${chosen.scannedIndex}, the character '${character}' is not a part of the alphabet, therefore the string is rejected.`
+          );
+
+          for (let i = 0; i < sim.string.length; ++i) {
+            spanOfIndex(id, i).style.color = "red";
+          }
+          break;
+        }
       }
     } else if (sim.identifier == "DFA") {
       const sim = this.simulations[id] as DFALocalSim;
@@ -385,8 +401,8 @@ export const simulation: Simulation = {
         const lastStates = sim.sequence[lastStatesIndex];
         if (lastStates.identifier === "state") {
           const lastState = lastStates.state;
-          const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
-            lastState.id.toString() === t.textContent
+          const stateTitles = [...sim.svg.querySelectorAll("title")].filter(
+            (t) => lastState.id.toString() === t.textContent
           );
 
           stateTitles.forEach((t) => colorParentOf(t, "lime"));
@@ -421,7 +437,6 @@ export const simulation: Simulation = {
           }
           spanOfIndex(id, chosen.scannedIndex).style.color = "red";
 
-
           /// Draw the different arrows.
           if (chosen.transition != null) {
             const [from, to] = chosen.transition;
@@ -450,8 +465,8 @@ export const simulation: Simulation = {
 
           /// Color the states.
           const state = chosen.state;
-          const stateTitles = [...sim.svg.querySelectorAll("title")].filter((t) =>
-            t.textContent == state.id.toString()
+          const stateTitles = [...sim.svg.querySelectorAll("title")].filter(
+            (t) => t.textContent == state.id.toString()
           );
 
           stateTitles.forEach((t) => colorParentOf(t, "lime"));
@@ -477,6 +492,18 @@ export const simulation: Simulation = {
             const verdict = isRecognized ? "recognized" : "not recognized";
             setActionMessage(id, `The resulting state is ${state}, so it is ${verdict}.`);
             drawPreviousState();
+          }
+          break;
+        }
+        case "error": {
+          const character = sim.string[chosen.scannedIndex];
+          setActionMessage(
+            id,
+            `At index ${chosen.scannedIndex}, the character '${character}' is not a part of the alphabet, therefore the string is rejected.`
+          );
+
+          for (let i = 0; i < sim.string.length; ++i) {
+            spanOfIndex(id, i).style.color = "red";
           }
           break;
         }

@@ -1,13 +1,8 @@
 import { DefaultMap } from "./default_map";
 import {
-  Choice,
-  Concatenation,
   epsilon,
-  KleenePlus,
-  KleeneStar,
   Letter,
-  Optional,
-  RegularExpression,
+  RegularExpression
 } from "./regular_expression";
 import { DFAStep, NFAStep } from "./simulation";
 
@@ -199,188 +194,6 @@ export class NFA extends FiniteAutomata {
     return new NFA(states, alphabet, transitions, start, accepting);
   }
 
-  static fromThompsonConstruction(regularExpression: RegularExpression): NFA {
-    const [_, nfa] = this._thompsonConstruction(regularExpression, 0);
-
-    return nfa;
-  }
-
-  static _thompsonConstruction(
-    regularExpression: RegularExpression,
-    idStart: number
-  ): [id: number, result: NFA] {
-    /**
-     * Thompson Construction works by recursively converting different 'clauses'
-     *  of Regular Expressions according to recursive rules.
-     *
-     * Reference: https://en.wikipedia.org/wiki/Thompson%27s_construction
-     */
-
-    if (regularExpression instanceof Letter) {
-      let id = idStart;
-      const start = new State(id++, `${id - 1}`);
-      const end = new State(id++, `${id - 1}`);
-      const states = new Set<State>([start, end]);
-      const alphabet = new Set<string>([regularExpression.rawLetter]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
-      transitions.get(start).get(regularExpression.rawLetter).add(end);
-
-      const accepting = new Set<State>([end]);
-
-      return [id, new NFA(states, alphabet, transitions, start, accepting)];
-    } else if (regularExpression instanceof Choice) {
-      let id = idStart;
-      const start = new State(id++, `${id - 1}`);
-
-      let leftNfa: NFA;
-      let rightNfa: NFA;
-
-      [id, leftNfa] = this._thompsonConstruction(regularExpression.left, id);
-      const leftStart = leftNfa.start;
-      const leftEnd = [...leftNfa.accepting][0];
-
-      [id, rightNfa] = this._thompsonConstruction(regularExpression.right, id);
-      const rightStart = rightNfa.start;
-      const rightEnd = [...rightNfa.accepting][0];
-
-      const end = new State(id++, `${id - 1}`);
-
-      const states = new Set<State>([start, end, ...leftNfa.states, ...rightNfa.states]);
-
-      // This might produce duplicates.
-      const alphabet = new Set<string>([epsilon.rawLetter, ...leftNfa.alphabet, ...rightNfa.alphabet]);
-
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
-      for (const transitionTable of [leftNfa._transitions, rightNfa._transitions]) {
-        for (const [source, subMap] of transitionTable.entries()) {
-          for (const [symbol, targets] of subMap.entries()) {
-            transitions.get(source).set(symbol, new Set(targets));
-          }
-        }
-      }
-
-      /// Add the ε-transitions from q to q[L] and q[R].
-      transitions.get(start).set(epsilon.rawLetter, new Set([leftStart, rightStart]));
-
-      /// Add the ε-transition from f[L] to f.
-      transitions.get(leftEnd).get(epsilon.rawLetter).add(end);
-
-      /// Add the ε-transition from f[R] to f.
-      transitions.get(rightEnd).get(epsilon.rawLetter).add(end);
-
-      return [id, new NFA(states, alphabet, transitions, start, new Set<State>([end]))];
-    } else if (regularExpression instanceof Concatenation) {
-      let id = idStart;
-
-      let leftNfa: NFA;
-      let rightNfa: NFA;
-
-      [id, leftNfa] = this._thompsonConstruction(regularExpression.left, id);
-      const leftStart = leftNfa.start;
-      const leftEnd = [...leftNfa.accepting][0];
-
-      [id, rightNfa] = this._thompsonConstruction(regularExpression.right, id);
-      const rightStart = rightNfa.start;
-      const rightEnd = [...rightNfa.accepting][0];
-
-      const statesArray = [...leftNfa.states, ...rightNfa.states].filter((s) => s != leftEnd);
-      const states = new Set<State>(statesArray);
-      const alphabet = new Set<string>([...leftNfa.alphabet, ...rightNfa.alphabet]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
-      for (const transitionTable of [leftNfa._transitions, rightNfa._transitions]) {
-        for (const [source, subMap] of transitionTable.entries()) {
-          for (const [symbol, targets] of subMap.entries()) {
-            transitions.get(source).set(symbol, new Set(targets));
-          }
-        }
-      }
-
-      for (const [_, subMap] of transitions.entries()) {
-        for (const [_, to] of subMap.entries()) {
-          if (to.has(leftEnd)) {
-            to.delete(leftEnd);
-            to.add(rightStart);
-          }
-        }
-      }
-
-      return [id, new NFA(states, alphabet, transitions, leftStart, new Set([rightEnd]))];
-    } else if (regularExpression instanceof Optional) {
-      let id = idStart;
-      let innerNfa: NFA;
-
-      [id, innerNfa] = this._thompsonConstruction(regularExpression.expression, id);
-      const innerStart = innerNfa.start;
-      const innerEnd = [...innerNfa.accepting][0];
-
-      const states = new Set(innerNfa.states);
-      const alphabet = new Set([epsilon.rawLetter, ...innerNfa.alphabet]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
-      for (const [source, subMap] of innerNfa._transitions.entries()) {
-        for (const [symbol, targets] of subMap.entries()) {
-          transitions.get(source).set(symbol, new Set(targets));
-        }
-      }
-      transitions.get(innerStart).get(epsilon.rawLetter).add(innerEnd);
-
-      return [id, new NFA(states, alphabet, transitions, innerStart, new Set([innerEnd]))];
-    } else if (regularExpression instanceof KleeneStar) {
-      let id = idStart;
-      const start = new State(id++, `${id - 1}`);
-
-      let innerNfa;
-      [id, innerNfa] = this._thompsonConstruction(regularExpression.expression, id);
-      const innerStart = innerNfa.start;
-      const innerEnd = [...innerNfa.accepting][0];
-
-      const end = new State(id++, `${id - 1}`);
-      const states = new Set([start, end, ...innerNfa.states]);
-      const alphabet = new Set([epsilon.rawLetter, ...innerNfa.alphabet]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
-      for (const [source, subMap] of innerNfa._transitions.entries()) {
-        for (const [symbol, targets] of subMap.entries()) {
-          transitions.get(source).set(symbol, new Set(targets));
-        }
-      }
-
-      /// Add epsilon transition from `q` to `q[L]` and `f`.
-      transitions.get(start).get(epsilon.rawLetter).add(innerStart).add(end);
-
-      /// Add epsilon transition from f to q.
-      transitions.get(innerEnd).get(epsilon.rawLetter).add(innerStart).add(end);
-
-      return [id, new NFA(states, alphabet, transitions, start, new Set([end]))];
-    } else if (regularExpression instanceof KleenePlus) {
-      let id = idStart;
-      const start = new State(id++, `${id - 1}`);
-
-      let innerNfa;
-      [id, innerNfa] = this._thompsonConstruction(regularExpression.expression, id);
-      const innerStart = innerNfa.start;
-      const innerEnd = [...innerNfa.accepting][0];
-
-      const end = new State(id++, `${id - 1}`);
-
-      const states = new Set([start, end, ...innerNfa.states]);
-      const alphabet = new Set([epsilon.rawLetter, ...innerNfa.alphabet]);
-      const transitions: NFATransitions = new DefaultMap((_) => new DefaultMap((_) => new Set()));
-      for (const [source, subMap] of innerNfa._transitions.entries()) {
-        for (const [symbol, targets] of subMap.entries()) {
-          transitions.get(source).set(symbol, new Set(targets));
-        }
-      }
-
-      /// Add epsilon transition from `q` to `q[L]`.
-      transitions.get(start).get(epsilon.rawLetter).add(innerStart);
-
-      /// Add epsilon transition from f to q.
-      transitions.get(innerEnd).get(epsilon.rawLetter).add(innerStart).add(end);
-
-      return [id, new NFA(states, alphabet, transitions, start, new Set([end]))];
-    } else {
-      throw new Error(`Unidentified runtime type ${regularExpression}.`);
-    }
-  }
 
   get transitions(): Generator<[State, Letter, State]> {
     return function* (this: NFA) {
@@ -455,6 +268,15 @@ export class NFA extends FiniteAutomata {
       const token = str[i];
       const transitions: [State, State][] = [];
       const newStates = new Set<State>();
+
+      if (!this.alphabet.has(token)) {
+        output.push({
+          scannedIndex: i,
+          identifier: "error",
+        });
+
+        return output;
+      }
 
       for (const source of states) {
         for (const target of this._transitions.get(source).get(token)!) {
@@ -617,7 +439,7 @@ export class NFA extends FiniteAutomata {
       const labels = [...stateSet].map((s) => s.label);
       labels.sort();
 
-      return labels.join(", ");
+      return `{ ${labels.join(", ")} }`;
     };
     const createOrGetState = (stateSet: Set<State>): [boolean, State] => {
       const label = createLabel(stateSet);
@@ -879,6 +701,15 @@ export class DFA extends FiniteAutomata {
     for (let i = 0; i < str.length; ++i) {
       const token = str[i];
 
+      if (!this.alphabet.has(token)) {
+        output.push({
+          scannedIndex: i,
+          identifier: "error",
+        });
+
+        return output;
+      }
+
       const previousState = state;
       state = this._transitions.get(state).get(token);
       if (state == null) {
@@ -904,7 +735,6 @@ export class DFA extends FiniteAutomata {
     /**
      * [f]: We show the result of the automata.
      */
-
     if (state == null) {
       output.push({
         finalState: null,
